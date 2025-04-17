@@ -1,20 +1,19 @@
-name: Build A1 Evo Acoustica Tool # Updated workflow name
+name: Build A1 Evo Acoustica Tool
 
 on:
-  workflow_dispatch: # Keep manual trigger
-  push: # Optional: Add triggers if you want it to run automatically
-    branches: [ main, master ]
-  pull_request: # Optional
+  workflow_dispatch: # Allows manual triggering
+  push:
+    branches: [ main, master ] # Adjust branch names if needed
+  pull_request:
     branches: [ main, master ]
 
 jobs:
   build:
-    # Use strategy matrix for different OS
     strategy:
       matrix:
         os: [ ubuntu-latest, windows-latest, macos-latest ]
-    runs-on: ${{ matrix.os }} # Run on the OS from the matrix
-    name: Build on ${{ matrix.os }} # Name the job run
+    runs-on: ${{ matrix.os }}
+    name: Build on ${{ matrix.os }}
 
     steps:
       - name: 🧾 Checkout code
@@ -23,66 +22,81 @@ jobs:
       - name: 🟢 Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18' # Use Node 18 for consistency
-          cache: 'npm' # Enable npm caching
+          node-version: '18' # Using Node 18 LTS
+          cache: 'npm'
 
-      # Change: Install project dependencies AND pkg as a dev dependency
-      # It's better to use project's pkg version than global
       - name: 📦 Install Dependencies
-        run: npm ci # Installs from package-lock.json, including devDependencies like pkg
+        run: npm ci # Use clean install based on package-lock.json
 
-      # Change: Run the build script from package.json
       - name: 🛠️ Build Executables with pkg
-        run: npm run build # Executes the "build" script which calls pkg with all targets
+        # Ensure package.json's build script targets win-x64, linux-x64, macos-x64, macos-arm64
+        run: npm run build
 
-      # Change: Adapt artifact preparation and upload
       - name: 📦 Prepare Artifacts
-        # Use shell based on runner OS
-        shell: ${{ matrix.os == 'windows-latest' && 'pwsh' || 'bash' }}
+        # Use bash shell consistently across runners
+        shell: bash
         run: |
           # Create a directory to stage artifacts
+          echo "Creating staging directory..."
           mkdir staging
 
-          # Move executables - adjust filenames based on your pkg output setting
-          # Default output name is 'a1-evo-acoustica' from package.json
-          if ('${{ matrix.os }}' -eq 'windows-latest') {
-            Move-Item ./a1-evo-acoustica-win.exe ./staging/
-          }
-          elseif ('${{ matrix.os }}' -eq 'ubuntu-latest') {
-            # pkg usually doesn't add arch suffix for linux x64 by default
-            mv ./a1-evo-acoustica ./staging/a1-evo-acoustica-linux-x64
-          }
-          elseif ('${{ matrix.os }}' -eq 'macos-latest') {
-            # macOS runner might build both, check for them
-            if (Test-Path ./a1-evo-acoustica-macos-x64) {
-              mv ./a1-evo-acoustica-macos-x64 ./staging/
-            }
-            if (Test-Path ./a1-evo-acoustica-macos-arm64) {
-              mv ./a1-evo-acoustica-macos-arm64 ./staging/
-            }
-            # Add fallback if only base name exists (older pkg?)
-            elseif (Test-Path ./a1-evo-acoustica-macos) {
-               mv ./a1-evo-acoustica-macos ./staging/a1-evo-acoustica-macos-x64 # Assume x64 if no suffix
-            }
-          }
-          else {
-            echo "Unknown OS for artifact moving: ${{ matrix.os }}"
-            exit 1
-          }
+          # Define the base output name from package.json's build script
+          OUTPUT_BASE="a1-evo-acoustica"
 
-          # Optional: Copy license file (assuming it's in the root)
-          if (Test-Path ./license.txt) {
-            Copy-Item ./license.txt ./staging/ # Use Copy-Item for PowerShell (Windows)
-          }
-          if [ -f ./license.txt ]; then # Use standard bash check for Linux/macOS
-             cp ./license.txt ./staging/
+          # Move executables based on OS - using bash syntax
+          echo "Moving executables for ${{ matrix.os }}..."
+
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            if [ -f ./${OUTPUT_BASE}-win.exe ]; then # Default name pkg usually uses
+              mv ./${OUTPUT_BASE}-win.exe ./staging/
+            elif [ -f ./${OUTPUT_BASE}-win-x64.exe ]; then # Alternative name pkg might use
+              mv ./${OUTPUT_BASE}-win-x64.exe ./staging/${OUTPUT_BASE}-win.exe
+            else
+               echo "::warning::Windows executable not found with expected names."
+            fi
+
+          elif [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+            if [ -f ./$OUTPUT_BASE ]; then # pkg often uses base name for linux x64
+              mv ./$OUTPUT_BASE ./staging/${OUTPUT_BASE}-linux-x64
+            elif [ -f ./${OUTPUT_BASE}-linux ]; then # Alternative name
+               mv ./${OUTPUT_BASE}-linux ./staging/${OUTPUT_BASE}-linux-x64
+            elif [ -f ./${OUTPUT_BASE}-linux-x64 ]; then # Specific name
+              mv ./${OUTPUT_BASE}-linux-x64 ./staging/
+            else
+               echo "::warning::Linux executable not found with expected names."
+            fi
+
+          elif [ "${{ matrix.os }}" = "macos-latest" ]; then
+            # Check for both macOS architectures
+            moved_macos=false
+            if [ -f ./${OUTPUT_BASE}-macos-x64 ]; then
+              mv ./${OUTPUT_BASE}-macos-x64 ./staging/
+              moved_macos=true
+            fi
+            if [ -f ./${OUTPUT_BASE}-macos-arm64 ]; then
+              mv ./${OUTPUT_BASE}-macos-arm64 ./staging/
+              moved_macos=true
+            fi
+            # Fallback if only base name exists
+            if [ "$moved_macos" = false ] && [ -f ./${OUTPUT_BASE}-macos ]; then
+               echo "Moving macOS fallback (assuming x64)..."
+               mv ./${OUTPUT_BASE}-macos ./staging/${OUTPUT_BASE}-macos-x64
+            elif [ "$moved_macos" = false ]; then
+                echo "::warning::macOS executables (x64 or arm64) not found with expected names."
+            fi
+          else
+            echo "::error::Unknown OS for artifact moving: ${{ matrix.os }}"
+            exit 1
           fi
 
-      # Change: Upload the staged files for this specific OS job
+          # Verify staging directory contents
+          echo "Staging directory contents:"
+          ls -l staging
+
       - name: 📤 Upload Artifact (${{ matrix.os }})
         uses: actions/upload-artifact@v4
         with:
-          # Name the artifact based on the OS
+          # Create a distinct artifact name for each OS build
           name: a1-evo-acoustica-${{ matrix.os }}
           # Upload the contents of the staging directory
           path: staging/
