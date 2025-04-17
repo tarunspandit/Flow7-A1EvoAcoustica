@@ -21,7 +21,7 @@
     "calibration",
     "dsp"
   ],
-  "author": "Your Name or Handle",
+  "author": "OCA",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
