@@ -6,7 +6,7 @@
   "bin": "main.js",
   "scripts": {
     "start": "node main.js",
-    "build": "pkg . --targets node18-win-x64,node18-linux-x64,node18-macos-x64,node18-macos-arm64 --output a1-evo-acoustica",
+    "build": "pkg . --targets node18-win-x64 --output a1-evo-acoustica",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
