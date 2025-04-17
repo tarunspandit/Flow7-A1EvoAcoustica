@@ -1,0 +1,88 @@
+name: Build A1 Evo Acoustica Tool # Updated workflow name
+
+on:
+  workflow_dispatch: # Keep manual trigger
+  push: # Optional: Add triggers if you want it to run automatically
+    branches: [ main, master ]
+  pull_request: # Optional
+    branches: [ main, master ]
+
+jobs:
+  build:
+    # Use strategy matrix for different OS
+    strategy:
+      matrix:
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
+    runs-on: ${{ matrix.os }} # Run on the OS from the matrix
+    name: Build on ${{ matrix.os }} # Name the job run
+
+    steps:
+      - name: 🧾 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18' # Use Node 18 for consistency
+          cache: 'npm' # Enable npm caching
+
+      # Change: Install project dependencies AND pkg as a dev dependency
+      # It's better to use project's pkg version than global
+      - name: 📦 Install Dependencies
+        run: npm ci # Installs from package-lock.json, including devDependencies like pkg
+
+      # Change: Run the build script from package.json
+      - name: 🛠️ Build Executables with pkg
+        run: npm run build # Executes the "build" script which calls pkg with all targets
+
+      # Change: Adapt artifact preparation and upload
+      - name: 📦 Prepare Artifacts
+        # Use shell based on runner OS
+        shell: ${{ matrix.os == 'windows-latest' && 'pwsh' || 'bash' }}
+        run: |
+          # Create a directory to stage artifacts
+          mkdir staging
+
+          # Move executables - adjust filenames based on your pkg output setting
+          # Default output name is 'a1-evo-acoustica' from package.json
+          if ('${{ matrix.os }}' -eq 'windows-latest') {
+            Move-Item ./a1-evo-acoustica-win.exe ./staging/
+          }
+          elseif ('${{ matrix.os }}' -eq 'ubuntu-latest') {
+            # pkg usually doesn't add arch suffix for linux x64 by default
+            mv ./a1-evo-acoustica ./staging/a1-evo-acoustica-linux-x64
+          }
+          elseif ('${{ matrix.os }}' -eq 'macos-latest') {
+            # macOS runner might build both, check for them
+            if (Test-Path ./a1-evo-acoustica-macos-x64) {
+              mv ./a1-evo-acoustica-macos-x64 ./staging/
+            }
+            if (Test-Path ./a1-evo-acoustica-macos-arm64) {
+              mv ./a1-evo-acoustica-macos-arm64 ./staging/
+            }
+            # Add fallback if only base name exists (older pkg?)
+            elseif (Test-Path ./a1-evo-acoustica-macos) {
+               mv ./a1-evo-acoustica-macos ./staging/a1-evo-acoustica-macos-x64 # Assume x64 if no suffix
+            }
+          }
+          else {
+            echo "Unknown OS for artifact moving: ${{ matrix.os }}"
+            exit 1
+          }
+
+          # Optional: Copy license file (assuming it's in the root)
+          if (Test-Path ./license.txt) {
+            Copy-Item ./license.txt ./staging/ # Use Copy-Item for PowerShell (Windows)
+          }
+          if [ -f ./license.txt ]; then # Use standard bash check for Linux/macOS
+             cp ./license.txt ./staging/
+          fi
+
+      # Change: Upload the staged files for this specific OS job
+      - name: 📤 Upload Artifact (${{ matrix.os }})
+        uses: actions/upload-artifact@v4
+        with:
+          # Name the artifact based on the OS
+          name: a1-evo-acoustica-${{ matrix.os }}
+          # Upload the contents of the staging directory
+          path: staging/
