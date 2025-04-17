@@ -1,4 +1,4 @@
-name: Build A1 Evo Acoustica Tool
+name: Build A1 Evo Acoustica Tool (Linux & macOS) # Updated workflow name
 
 on:
   workflow_dispatch: # Allows manual triggering
@@ -10,11 +10,17 @@ on:
 jobs:
   build:
     strategy:
-      fail-fast: false # Allows other jobs to continue if one fails
+      fail-fast: false
       matrix:
-        os: [ ubuntu-latest, windows-latest, macos-latest ] # Run on all 3 OS
+        # *** REMOVED windows-latest from the matrix ***
+        os: [ ubuntu-latest, macos-latest ]
     runs-on: ${{ matrix.os }}
     name: Build on ${{ matrix.os }} (Node 18)
+
+    # No need for the env block if Windows isn't running
+    # env:
+    #   NODE_DEBUG: child_process
+    #   DEBUG: pkg*
 
     steps:
       - name: 🧾 Checkout code
@@ -23,18 +29,17 @@ jobs:
       - name: 🟢 Set up Node.js v18
         uses: actions/setup-node@v4
         with:
-          node-version: '18' # Use Node 18 LTS consistently
+          node-version: '18'
           cache: 'npm'
 
       - name: 📦 Install Dependencies
-        run: npm ci # Clean install using package-lock.json
+        run: npm ci
 
       - name: 🛠️ Build Executables with pkg
-        # This executes the 'build' script from package.json which should
-        # target node18 for win-x64, linux-x64, macos-x64, macos-arm64
+        # This runs the 'build' script from package.json
+        # That script should still list all targets, pkg will just ignore the Windows one when run on Linux/macOS
         run: npm run build
 
-      # Add step to list files AFTER build to help diagnose missing executables
       - name: 📜 List Files After Build
         shell: bash
         run: ls -l
@@ -50,14 +55,9 @@ jobs:
 
           echo "Moving executables for ${{ matrix.os }}..."
 
-          if [ "${{ matrix.os }}" = "windows-latest" ]; then
-            echo "Looking for Windows executable..."
-            if [ -f ./${OUTPUT_BASE}-win.exe ]; then mv ./${OUTPUT_BASE}-win.exe ${TARGET_DIR}/; EXE_FOUND=true; echo "Moved ${OUTPUT_BASE}-win.exe";
-            elif [ -f ./${OUTPUT_BASE}-win-x64.exe ]; then mv ./${OUTPUT_BASE}-win-x64.exe ${TARGET_DIR}/${OUTPUT_BASE}-win.exe; EXE_FOUND=true; echo "Moved ${OUTPUT_BASE}-win-x64.exe";
-            elif [ -f ./${OUTPUT_BASE}.exe ]; then mv ./${OUTPUT_BASE}.exe ${TARGET_DIR}/${OUTPUT_BASE}-win.exe; EXE_FOUND=true; echo "Moved ${OUTPUT_BASE}.exe";
-            fi
+          # --- REMOVED Windows block ---
 
-          elif [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
              echo "Looking for Linux executable..."
              if [ -f ./$OUTPUT_BASE ]; then mv ./$OUTPUT_BASE ${TARGET_DIR}/${OUTPUT_BASE}-linux-x64; EXE_FOUND=true; echo "Moved $OUTPUT_BASE";
              elif [ -f ./${OUTPUT_BASE}-linux ]; then mv ./${OUTPUT_BASE}-linux ${TARGET_DIR}/${OUTPUT_BASE}-linux-x64; EXE_FOUND=true; echo "Moved ${OUTPUT_BASE}-linux";
@@ -66,18 +66,19 @@ jobs:
 
           elif [ "${{ matrix.os }}" = "macos-latest" ]; then
              echo "Looking for macOS executables..."
+             # Note: pkg on macOS runner should create both arch files correctly if listed in targets
              if [ -f ./${OUTPUT_BASE}-macos-x64 ]; then mv ./${OUTPUT_BASE}-macos-x64 ${TARGET_DIR}/; EXE_FOUND=true; echo "Moved ${OUTPUT_BASE}-macos-x64";
              fi
-             if [ -f ./${OUTPUT_BASE}-macos-arm64 ]; then mv ./${OUTPUT_BASE}-macos-arm64 ${TARGET_DIR}/; EXE_FOUND=true; echo "Moved ${OUTPUT_BASE}-macos-arm64";
+             if [ -f ./${OUTPUT_BASE}-macos-arm64 ]; then mv ./${OUTPUT_BASE}-macos-arm64 ${TARGET_DIR}/; EXE_FOUND=true; echo "Moved ${OUTPUT_BASE}-macos-arm64"; # EXE_FOUND intentionally overwritten if arm exists
              fi
-             if [ "$EXE_FOUND" = false ] && [ -f ./${OUTPUT_BASE}-macos ]; then mv ./${OUTPUT_BASE}-macos ${TARGET_DIR}/${OUTPUT_BASE}-macos-x64; EXE_FOUND=true; echo "Moved ${OUTPUT_BASE}-macos (fallback)";
-             fi
+             # Remove fallback - we expect specific arch files on macOS runner
+             # if [ "$EXE_FOUND" = false ] && [ -f ./${OUTPUT_BASE}-macos ]; then ...
           else
-            echo "::error::Unknown OS for artifact moving: ${{ matrix.os }}"
+            echo "::error::Unexpected OS for artifact moving: ${{ matrix.os }}"
             exit 1
           fi
 
-          # Final Check - Fail job if executable wasn't found and moved
+          # Final Check
           if [ "$EXE_FOUND" = false ]; then
             echo "::error::No executable found to move for ${{ matrix.os }} with base name ${OUTPUT_BASE}"
             echo "Files present after build:"
@@ -92,4 +93,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: a1-evo-acoustica-${{ matrix.os }}
-          path: staging/ # Upload contents of staging directory
+          path: staging/
