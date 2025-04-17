@@ -545,8 +545,8 @@ async function mainMenu() {
             }
             console.log('\n--- Starting Optimization ---');
             const optimizationUrl = `http://localhost:${SERVER_PORT}/`;
-            console.log(`Opening ${optimizationUrl} in your browser...`);
-            console.log(`A1Evo will automatically load '${CONFIG_FILENAME}' from the server.`);
+            //console.log(`Opening ${optimizationUrl} in your browser...`);
+            //console.log(`A1Evo will automatically load '${CONFIG_FILENAME}' from the server.`);
             //console.log(`>>> NOTE: A1Evo.html will likely save its output calibration file`);
             //console.log(`>>> (e.g., *.oca) to your browser's default Downloads folder.`);
             //console.log(`>>> You will need this file for Option 3.`);
@@ -788,7 +788,7 @@ function checkRewApi(port = 4735, timeout = 1500) {
         socket.on('error', (err) => {
             clearTimeout(timer);
             if (err.code === 'ECONNREFUSED') {
-             console.log("API connection refused (port open but not accepting?).");
+             //console.log("API connection refused (port open but not accepting?).");
              resolve(false); 
             } else {
                  console.warn(`API connection error: ${err.message} (Code: ${err.code})`);
@@ -805,14 +805,14 @@ async function ensureRewReady() {
     const procName = platform === 'win32' ? 'roomeqwizard.exe' : (platform === 'darwin' ? 'REW' : 'roomeqwizard'); 
     const rewApiPort = 4735; 
     let isRunning = await isProcessRunning(procName);
-    console.log(`Is REW process (${procName}) running? ${isRunning}`);
+    //console.log(`Is REW process (${procName}) running? ${isRunning}`);
     if (isRunning) {
         const isApiListening = await checkRewApi(rewApiPort);
         if (isApiListening) {
             console.log("REW is running and API port seems active. Good to go!");
             return true;
         } else {
-            console.log("REW is running, but API port check failed.");
+            //console.log("REW is running, but API port check failed.");
              const { proceedAnyway } = await inquirer.prompt([{
                  type: 'confirm',
                  name: 'proceedAnyway',
@@ -857,7 +857,7 @@ async function ensureRewReady() {
         return true;
     } else {
         console.error(`Launched REW, but API port ${rewApiPort} did not become active within ${waitTime / 1000} seconds.`);
-        console.log("Ensure REW's API server is enabled and not blocked by a firewall.");
+        console.log("Ensure REW's API server is enabled");
          const { proceedFail } = await inquirer.prompt([{
              type: 'confirm',
              name: 'proceedFail',
