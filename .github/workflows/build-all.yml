@@ -3,100 +3,93 @@ name: Build A1 Evo Acoustica Tool
 on:
   workflow_dispatch: # Allows manual triggering
   push:
-    branches: [ main, master ] # Adjust branch names if needed
+    branches: [ main, master ] # Runs on pushes to these branches
   pull_request:
-    branches: [ main, master ]
+    branches: [ main, master ] # Runs on PRs targeting these branches
 
 jobs:
   build:
     strategy:
+      fail-fast: false # Allows other jobs to continue if one fails
       matrix:
-        os: [ ubuntu-latest, windows-latest, macos-latest ]
+        os: [ ubuntu-latest, windows-latest, macos-latest ] # Run on all 3 OS
     runs-on: ${{ matrix.os }}
-    name: Build on ${{ matrix.os }}
+    name: Build on ${{ matrix.os }} (Node 18)
 
     steps:
       - name: 🧾 Checkout code
         uses: actions/checkout@v4
 
-      - name: 🟢 Set up Node.js
+      - name: 🟢 Set up Node.js v18
         uses: actions/setup-node@v4
         with:
-          node-version: '20' # Using Node 18 LTS
+          node-version: '18' # Use Node 18 LTS consistently
           cache: 'npm'
 
       - name: 📦 Install Dependencies
-        run: npm ci # Use clean install based on package-lock.json
+        run: npm ci # Clean install using package-lock.json
 
       - name: 🛠️ Build Executables with pkg
-        # Ensure package.json's build script targets win-x64, linux-x64, macos-x64, macos-arm64
+        # This executes the 'build' script from package.json which should
+        # target node18 for win-x64, linux-x64, macos-x64, macos-arm64
         run: npm run build
 
+      # Add step to list files AFTER build to help diagnose missing executables
+      - name: 📜 List Files After Build
+        shell: bash
+        run: ls -l
+
       - name: 📦 Prepare Artifacts
-        # Use bash shell consistently across runners
         shell: bash
         run: |
-          # Create a directory to stage artifacts
           echo "Creating staging directory..."
           mkdir staging
+          OUTPUT_BASE="a1-evo-acoustica" # Should match --output in package.json
+          TARGET_DIR="./staging"
+          EXE_FOUND=false # Flag
 
-          # Define the base output name from package.json's build script
-          OUTPUT_BASE="a1-evo-acoustica"
-
-          # Move executables based on OS - using bash syntax
           echo "Moving executables for ${{ matrix.os }}..."
 
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
-            if [ -f ./${OUTPUT_BASE}-win.exe ]; then # Default name pkg usually uses
-              mv ./${OUTPUT_BASE}-win.exe ./staging/
-            elif [ -f ./${OUTPUT_BASE}-win-x64.exe ]; then # Alternative name pkg might use
-              mv ./${OUTPUT_BASE}-win-x64.exe ./staging/${OUTPUT_BASE}-win.exe
-            else
-               echo "::warning::Windows executable not found with expected names."
+            echo "Looking for Windows executable..."
+            if [ -f ./${OUTPUT_BASE}-win.exe ]; then mv ./${OUTPUT_BASE}-win.exe ${TARGET_DIR}/; EXE_FOUND=true; echo "Moved ${OUTPUT_BASE}-win.exe";
+            elif [ -f ./${OUTPUT_BASE}-win-x64.exe ]; then mv ./${OUTPUT_BASE}-win-x64.exe ${TARGET_DIR}/${OUTPUT_BASE}-win.exe; EXE_FOUND=true; echo "Moved ${OUTPUT_BASE}-win-x64.exe";
+            elif [ -f ./${OUTPUT_BASE}.exe ]; then mv ./${OUTPUT_BASE}.exe ${TARGET_DIR}/${OUTPUT_BASE}-win.exe; EXE_FOUND=true; echo "Moved ${OUTPUT_BASE}.exe";
             fi
 
           elif [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
-            if [ -f ./$OUTPUT_BASE ]; then # pkg often uses base name for linux x64
-              mv ./$OUTPUT_BASE ./staging/${OUTPUT_BASE}-linux-x64
-            elif [ -f ./${OUTPUT_BASE}-linux ]; then # Alternative name
-               mv ./${OUTPUT_BASE}-linux ./staging/${OUTPUT_BASE}-linux-x64
-            elif [ -f ./${OUTPUT_BASE}-linux-x64 ]; then # Specific name
-              mv ./${OUTPUT_BASE}-linux-x64 ./staging/
-            else
-               echo "::warning::Linux executable not found with expected names."
-            fi
+             echo "Looking for Linux executable..."
+             if [ -f ./$OUTPUT_BASE ]; then mv ./$OUTPUT_BASE ${TARGET_DIR}/${OUTPUT_BASE}-linux-x64; EXE_FOUND=true; echo "Moved $OUTPUT_BASE";
+             elif [ -f ./${OUTPUT_BASE}-linux ]; then mv ./${OUTPUT_BASE}-linux ${TARGET_DIR}/${OUTPUT_BASE}-linux-x64; EXE_FOUND=true; echo "Moved ${OUTPUT_BASE}-linux";
+             elif [ -f ./${OUTPUT_BASE}-linux-x64 ]; then mv ./${OUTPUT_BASE}-linux-x64 ${TARGET_DIR}/; EXE_FOUND=true; echo "Moved ${OUTPUT_BASE}-linux-x64";
+             fi
 
           elif [ "${{ matrix.os }}" = "macos-latest" ]; then
-            # Check for both macOS architectures
-            moved_macos=false
-            if [ -f ./${OUTPUT_BASE}-macos-x64 ]; then
-              mv ./${OUTPUT_BASE}-macos-x64 ./staging/
-              moved_macos=true
-            fi
-            if [ -f ./${OUTPUT_BASE}-macos-arm64 ]; then
-              mv ./${OUTPUT_BASE}-macos-arm64 ./staging/
-              moved_macos=true
-            fi
-            # Fallback if only base name exists
-            if [ "$moved_macos" = false ] && [ -f ./${OUTPUT_BASE}-macos ]; then
-               echo "Moving macOS fallback (assuming x64)..."
-               mv ./${OUTPUT_BASE}-macos ./staging/${OUTPUT_BASE}-macos-x64
-            elif [ "$moved_macos" = false ]; then
-                echo "::warning::macOS executables (x64 or arm64) not found with expected names."
-            fi
+             echo "Looking for macOS executables..."
+             if [ -f ./${OUTPUT_BASE}-macos-x64 ]; then mv ./${OUTPUT_BASE}-macos-x64 ${TARGET_DIR}/; EXE_FOUND=true; echo "Moved ${OUTPUT_BASE}-macos-x64";
+             fi
+             if [ -f ./${OUTPUT_BASE}-macos-arm64 ]; then mv ./${OUTPUT_BASE}-macos-arm64 ${TARGET_DIR}/; EXE_FOUND=true; echo "Moved ${OUTPUT_BASE}-macos-arm64";
+             fi
+             if [ "$EXE_FOUND" = false ] && [ -f ./${OUTPUT_BASE}-macos ]; then mv ./${OUTPUT_BASE}-macos ${TARGET_DIR}/${OUTPUT_BASE}-macos-x64; EXE_FOUND=true; echo "Moved ${OUTPUT_BASE}-macos (fallback)";
+             fi
           else
             echo "::error::Unknown OS for artifact moving: ${{ matrix.os }}"
             exit 1
           fi
 
-          # Verify staging directory contents
-          echo "Staging directory contents:"
-          ls -l staging
+          # Final Check - Fail job if executable wasn't found and moved
+          if [ "$EXE_FOUND" = false ]; then
+            echo "::error::No executable found to move for ${{ matrix.os }} with base name ${OUTPUT_BASE}"
+            echo "Files present after build:"
+            ls -l ./
+            exit 1
+          else
+             echo "Staging directory contents:"
+             ls -l ${TARGET_DIR}
+          fi
 
       - name: 📤 Upload Artifact (${{ matrix.os }})
         uses: actions/upload-artifact@v4
         with:
-          # Create a distinct artifact name for each OS build
           name: a1-evo-acoustica-${{ matrix.os }}
-          # Upload the contents of the staging directory
-          path: staging/
+          path: staging/ # Upload contents of staging directory
