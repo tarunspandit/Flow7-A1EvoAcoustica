@@ -1,21 +1,27 @@
-MIT License
+opyright (c) 2025 OCA (https://www.youtube.com/@OCAudiophile)
 
-Copyright (c) 2025 Serkan Gür
+All rights reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This software is licensed under the following terms:
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+Permission is granted to:
+  - Share: Copy and redistribute the material in its original, unmodified form, in any medium or format, provided this full license notice is included and no alterations are made to the content or functionality.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+Restrictions:
+  - Attribution: You must provide appropriate credit to the original author (OCA), include a link to the official project or source (https://www.youtube.com/@OCAudiophile), and reproduce this license notice in full with every copy.
+  - NonCommercial: You may not use the material for commercial purposes under any circumstances.
+  - No Modifications: You may not modify, adapt, remix, transform, translate, convert to other languages, automate, integrate into other works, or otherwise alter the material in any way without explicit written permission from the author.
+  - No Additional Use: Any use beyond exact duplication and sharing of the original, unmodified work—including but not limited to incorporation into other projects or systems—requires prior written consent from the author.
+
+Special Notice:
+  - The algorithms, structure, and functionality contained in this script are proprietary and may not be used, reproduced, or adapted for any purpose—commercial or non-commercial—without explicit written permission from the author.
+  - Any permitted modified versions must:
+      • Be explicitly authorized in writing by the author prior to creation, use, or distribution.
+      • Clearly indicate they are modified from the original.
+      • Include this license notice in full.
+      • Attribute the original author and provide a link to the official project or source.
+
+Disclaimer:
+  This software is provided "as is", without warranty of any kind, express or implied,
+  including but not limited to the warranties of merchantability, fitness for a particular purpose,
+  and noninfringement. Use at your own risk.
