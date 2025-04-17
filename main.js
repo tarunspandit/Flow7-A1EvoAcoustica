@@ -30,7 +30,7 @@ const APP_BASE_PATH = getBasePath();
 const CONFIG_FILENAME = 'receiver_config.avr';
 const CONFIG_FILEPATH = path.join(APP_BASE_PATH, CONFIG_FILENAME);
 const HTML_FILENAME = 'A1Evo.html';
-const HTML_FILEPATH = path.join(APP_BASE_PATH, HTML_FILENAME);
+const HTML_FILEPATH = path.resolve(__dirname, HTML_FILENAME);
 
 function runNodeScript(scriptPath, dataToSend = null) {
     return new Promise((resolve, reject) => {
