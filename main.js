@@ -1342,96 +1342,55 @@ function launchRew(rewPath, memoryArg = "-Xmx4096m") { // Default 4GB memory
     });
 }
 
-// Keep checkRewApi (HTTP check) as primary, checkRewApi2 (TCP check) as potential fallback/debug
-function checkRewApi(port = rewApiPort, timeout = 2000) { // Use global constant
+function checkRewApi(port = rewApiPort, timeout = 2000) {
     return new Promise((resolve) => {
         const options = {
-            hostname: 'localhost',
+            // --- CHANGE THIS ---
+            // hostname: 'localhost',
+            hostname: '127.0.0.1', // Use explicit IPv4 loopback
+            // --- END CHANGE ---
             port: port,
-            path: '/version', // Standard REW API endpoint to check liveliness
+            path: '/version',
             method: 'GET',
             timeout: timeout,
         };
 
-        // console.log(`Checking REW API status via HTTP GET http://localhost:${port}/version (Timeout: ${timeout}ms)...`);
+        // console.log(`[checkRewApi] Attempting GET http://127.0.0.1:${port}/version...`); // Updated log
 
         const req = http.request(options, (res) => {
             let responseBody = '';
             res.setEncoding('utf8');
-            res.on('data', (chunk) => { responseBody += chunk; }); // Collect body
+            res.on('data', (chunk) => { responseBody += chunk; });
+
             res.on('end', () => {
-                // Check for 2xx status codes for success
-                if (res.statusCode >= 200 && res.statusCode < 300) {
-                    // console.log(`REW API responded successfully (Status ${res.statusCode}). Version info: ${responseBody}`); // Log version?
-                    resolve(true); // Success!
+                if (res.statusCode === 200) {
+                    // console.log(`[checkRewApi] Success: Status 200.`);
+                    resolve(true);
                 } else {
-                    console.warn(`REW API responded to /version check with unexpected status: ${res.statusCode}`);
-                    // Log body for debugging non-200 responses
-                    // console.warn(`Response body: ${responseBody}`);
-                    resolve(false); // API is there but not behaving as expected
+                    console.warn(`[checkRewApi] Failed: Received status code ${res.statusCode}.`);
+                    resolve(false);
                 }
             });
         });
 
-        // Handle network errors (connection refused, DNS errors, etc.)
         req.on('error', (err) => {
-            if (err.code === 'ECONNREFUSED') {
-                // console.log(`REW API connection refused on port ${port}. (Not running or not listening?)`); // Less verbose normal case
-            } else {
-                console.warn(`REW API check (HTTP) error: ${err.message} (Code: ${err.code})`);
-            }
-            resolve(false); // Any connection error means API is not ready
+             if (err.code === 'ECONNREFUSED') {
+                 console.warn(`[checkRewApi] Failed: Connection refused on port ${port} at 127.0.0.1.`);
+             } else {
+                 console.warn(`[checkRewApi] Failed: Network error - ${err.message} (Code: ${err.code})`);
+             }
+             resolve(false);
         });
 
-        // Handle explicit timeout event
         req.on('timeout', () => {
-            console.warn(`REW API check (HTTP) timed out after ${timeout}ms.`);
-            req.destroy(); // Clean up the request socket
-            resolve(false);
+             console.warn(`[checkRewApi] Failed: Request timed out after ${timeout}ms.`);
+             req.destroy();
+             resolve(false);
         });
 
-        // Send the request
         req.end();
     });
 }
-
-// TCP Port check - less reliable as port could be open but API not ready
-function checkRewApiPortOpen(port = rewApiPort, timeout = 1500) {
-    return new Promise((resolve) => {
-        // console.log(`Checking if TCP port ${port} is open (Timeout: ${timeout}ms)...`);
-        const socket = new net.Socket();
-        let connected = false;
-        const timer = setTimeout(() => {
-            // console.log(`TCP port check timed out after ${timeout}ms.`); // Debug
-            socket.destroy();
-            resolve(false); // Timed out means cannot connect
-        }, timeout);
-
-        socket.on('connect', () => {
-            connected = true;
-            // console.log(`TCP port ${port} is open.`); // Debug
-            socket.end(); // Close connection immediately
-            clearTimeout(timer);
-            resolve(true); // Port is open
-        });
-
-        socket.on('error', (err) => {
-            clearTimeout(timer);
-            // ECONNREFUSED is expected if nothing is listening
-            // if (err.code !== 'ECONNREFUSED') {
-            //      console.warn(`TCP port check error: ${err.message} (Code: ${err.code})`);
-            // } else {
-            //      console.log(`TCP port ${port} is closed or connection refused.`); // Debug
-            // }
-            resolve(false); // Any error means we couldn't connect
-        });
-
-        // Attempt connection
-        socket.connect(port, 'localhost');
-    });
-}
-
-
 async function ensureRewReady() {
     console.log("\n--- Checking REW Status & API Availability ---");
     const platform = os.platform();
