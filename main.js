@@ -12,11 +12,11 @@ const fs = require('fs');
 const SERVER_PORT = 3000; 
 const AVR_CONTROL_PORT = 1256;
 const CONFIG = {timeouts: {discovery: 5000, connection: 3000, command: 5000}};
+const rewApiPort = 4735;
 
 let cachedAvrConfig = null;
 let receivedOptimizationData = null;
 let mainServer = null;
-
 
 function getBasePath() {
   if (process.pkg) {
@@ -334,7 +334,7 @@ async function getAvrInfoAndStatus(socket, commandTimeout) {
   }
 }
 
-function formatDataForFrontend(details) {
+function formatDataForFrontend_old(details) {
     const infoJson = details.infoJson || {};
     const statusJson = details.avrStatus || {};
     const targetModelName = infoJson.ModelName || details.modelName;
@@ -399,73 +399,454 @@ function formatDataForFrontend(details) {
     return simplifiedConfig;
 }
 
-async function runFullDiscoveryAndSave(interactive = false) {
+function formatDataForFrontend(details) { // details contains modelName, ip, ampAssignString, assignBin, eqTypeString, rawChSetup etc.
+    // ... (Keep the last version of this function, it should work with the 'details' structure above) ...
+     const targetModelName = details.modelName || 'Unknown';
+     const ipAddress = details.ip || null;
+     const eqTypeString = details.eqTypeString || "";
+     const ampAssignString = details.ampAssignString;
+     const assignBin = details.assignBin;
+     const rawChSetup = details.rawChSetup;
+
+     let enMultEQType = null;
+      if (typeof eqTypeString === 'string' && eqTypeString) {
+         if (eqTypeString.includes('XT32')) enMultEQType = 2;
+         else if (eqTypeString.includes('XT')) enMultEQType = 1;
+         else if (eqTypeString.includes('MultEQ')) enMultEQType = 0;
+      }
+      if (enMultEQType === null) { throw new Error("Could not determine MultEQ Type from provided string."); }
+      if (!ampAssignString) throw new Error("Amp Assign string missing.");
+      if (!assignBin) throw new Error("Amp Assign Info (AssignBin) missing.");
+      if (!rawChSetup || !Array.isArray(rawChSetup)) { throw new Error("Channel Setup data missing or invalid."); }
+
+      let detectedChannels = [];
+      let subCount = 0;
+      rawChSetup.forEach(entry => {
+          if (!entry || typeof entry !== 'object') return;
+          let commandId = Object.keys(entry)[0];
+          const speakerType = entry[commandId];
+          if (speakerType !== 'N') {
+              if (commandId.startsWith('SWMIX')) commandId = commandId.replace('MIX', '');
+              detectedChannels.push({ commandId: commandId });
+              if (commandId.startsWith('SW') || commandId.startsWith('LFE')) subCount++;
+          }
+      });
+      if (detectedChannels.length === 0) { throw new Error("No active channels found."); }
+
+     const simplifiedConfig = {
+         targetModelName: targetModelName,
+         ipAddress: ipAddress,
+         enMultEQType: enMultEQType,
+         subwooferNum: subCount,
+         ampAssign: ampAssignString,
+         ampAssignInfo: assignBin,
+         detectedChannels: detectedChannels
+     };
+     return simplifiedConfig;
+}
+async function fetchModelFromGoform(ipAddress) { // Make async for await
+    return new Promise((resolve) => {
+        const url = `http://${ipAddress}/goform/formMainZone_MainZoneXml.xml`;
+        console.log(`Attempting to fetch model name from ${url}...`);
+        const options = {
+            method: 'GET',
+            timeout: CONFIG.timeouts.command // Reuse command timeout
+        };
+
+        const req = http.request(options, (res) => {
+            let data = '';
+            if (res.statusCode !== 200) {
+                console.warn(`Failed to get ${url}. Status: ${res.statusCode}`);
+                res.resume();
+                resolve(null); // Cannot get model this way
+                return;
+            }
+            res.setEncoding('utf8');
+            res.on('data', chunk => data += chunk);
+            res.on('end', () => {
+                try {
+                    // Look for ModelName within <value> tags
+                    const modelMatch = data.match(/<ModelName><value>(.*?)<\/value><\/ModelName>/i);
+                    // Also try FriendlyName as a fallback? Sometimes it's better populated.
+                    const friendlyMatch = data.match(/<FriendlyName><value>(.*?)<\/value><\/FriendlyName>/i);
+
+                    let modelName = modelMatch ? modelMatch[1].trim() : null;
+                    const friendlyName = friendlyMatch ? friendlyMatch[1].trim() : null;
+
+                    // Prefer ModelName, but use FriendlyName if ModelName is absent/generic
+                    if (!modelName || modelName.toLowerCase().includes('receiver') || modelName.toLowerCase().includes('avr')) {
+                       if (friendlyName && friendlyName.length > 2) { // Use friendly name if model is generic/missing and friendly exists
+                           console.log(`Using FriendlyName ("${friendlyName}") as model name from goform.`);
+                           modelName = friendlyName;
+                       }
+                    }
+
+                    console.log(`Model name found via goform: ${modelName}`);
+                    resolve(modelName); // Return the determined name (could still be null)
+                } catch (parseError) {
+                    console.error(`Error parsing XML from ${url}:`, parseError);
+                    resolve(null);
+                }
+            });
+        });
+
+        req.on('error', (e) => {
+            console.error(`Error requesting ${url}: ${e.message}`);
+            resolve(null);
+        });
+        req.on('timeout', () => {
+            req.destroy();
+            console.error(`Timeout requesting ${url}`);
+            resolve(null);
+        });
+        req.end();
+    });
+}
+
+
+async function runFullDiscoveryAndSave_old(interactive = true) { // Default to interactive for Option 1
+    console.log('\nStarting AVR discovery and configuration...');
+    let targetIp = null;
+    let modelName = null;
+    let initialFriendlyName = null; // Store initial UPnP friendly name if found
+    let modelSource = "None";
+    let avrFoundViaDiscovery = false;
+    let selectedAvrInfo = null; // To store the full device object from discovery
+
+    // --- Stage 1: Try UPnP Discovery ---
+    try {
+        const discovery = new UPNPDiscovery(CONFIG.timeouts.discovery);
+        let devices = await discovery.discover();
+        console.log(`Discovery finished. Found ${devices.length} distinct UPnP device descriptions.`);
+
+        // Filter based on D+M keywords in description (our original working filter)
+        const potentialAvrs = devices.filter(dev =>
+             dev.modelName && dev.modelName !== 'Unknown Model' &&
+             (/Denon|Marantz/i.test(dev.manufacturer || '') ||
+             /AVR|Receiver|SR|NR|AV|Cinema/i.test(dev.friendlyName || '') ||
+             /AVR|SR|NR|AV|Cinema/i.test(dev.modelName || ''))
+        );
+        console.log(`Found ${potentialAvrs.length} potential Denon/Marantz descriptions via UPnP.`);
+
+        if (potentialAvrs.length === 1) {
+            selectedAvrInfo = potentialAvrs[0];
+        } else if (potentialAvrs.length > 1 && interactive) {
+            console.warn(`Multiple potential Denon/Marantz descriptions found via UPnP.`);
+            selectedAvrInfo = await UPNPDiscovery.interactiveDeviceSelection(potentialAvrs);
+        } else if (potentialAvrs.length > 1 && !interactive) {
+             console.log("Multiple potential UPnP devices found. Cannot auto-select.");
+             // Don't fail yet, maybe manual IP or goform will work
+        }
+        // else: 0 potential AVRs found via UPnP description filtering
+
+        if (selectedAvrInfo) {
+            avrFoundViaDiscovery = true;
+            targetIp = selectedAvrInfo.address;
+            modelName = selectedAvrInfo.modelName; // Get model name from description
+            initialFriendlyName = selectedAvrInfo.friendlyName;
+            modelSource = "UPnP Description XML";
+            console.log(`Using device found via UPnP: ${modelName} at ${targetIp}`);
+        } else {
+            console.log("No suitable device description found via UPnP filtering.");
+            // Continue to potentially try manual IP or goform
+        }
+
+    } catch (discoveryError) {
+        console.error(`Error during UPnP discovery: ${discoveryError.message}`);
+        // Continue, maybe manual IP will work
+    }
+
+
+    // --- Stage 2: Manual IP Entry (If UPnP failed and interactive) ---
+    if (!targetIp && interactive) {
+        console.log("\nUPnP discovery did not yield a target device.");
+        try {
+            const ipAnswer = await inquirer.prompt([{
+                type: 'input',
+                name: 'manualIp',
+                message: 'Please enter the AVR IP address manually:',
+                validate: input => (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(input)) ? true : 'Please enter a valid IPv4 address.'
+            }]);
+            targetIp = ipAnswer.manualIp;
+            console.log(`Using manually entered IP: ${targetIp}`);
+        } catch (promptError) {
+             console.error("Failed to get manual IP input.", promptError);
+             return false; // Abort if prompt fails
+        }
+    } else if (!targetIp && !interactive) {
+         console.error("Automatic check failed: No AVR found via UPnP and cannot prompt for IP.");
+         return false;
+    }
+    if (!targetIp) { console.error("Configuration aborted: No target IP address available."); return false; }
+
+
+    // --- Stage 3: Try /goform/ XML (If model still unknown) ---
+    if (!modelName || modelName === 'Unknown Model') {
+        console.log(`Model name not found via UPnP. Trying /goform/ endpoint on ${targetIp}...`);
+        const goformModel = await fetchModelFromGoform(targetIp);
+        if (goformModel && goformModel !== 'Unknown Model') {
+            modelName = goformModel;
+            modelSource = "/goform/ XML";
+            console.log(`Model name identified as "${modelName}" via /goform/.`);
+        } else {
+            console.log("Could not get model name from /goform/ endpoint either.");
+            modelSource = "None Found";
+        }
+    }
+
+
+    // --- Stage 4: Manual Model Name (If still needed and interactive) ---
+    let finalModelName = modelName;
+    if (interactive) {
+        let promptForModel = false;
+        if (finalModelName && finalModelName !== 'Unknown Model') {
+            const confirm = await inquirer.prompt([{ /* ... confirm prompt ... */
+                type: 'confirm',
+                name: 'isCorrect',
+                message: `Is "${finalModelName}" the correct model for the device at ${targetIp}? (Source: ${modelSource})`,
+                default: true
+            }]);
+            if (!confirm.isCorrect) { finalModelName = null; promptForModel = true; }
+        } else {
+            promptForModel = true; // No model found automatically
+        }
+
+        if (promptForModel) {
+            console.log("\nCould not automatically determine/confirm model name.");
+            const modelPrompt = await inquirer.prompt([/* ... manual input ... */{
+                type: 'input', name: 'modelNameManual',
+                message: 'Please enter the correct AVR Model Name (e.g., SR6011, X3800H):',
+                validate: input => (input && input.trim().length > 0) ? true : 'Model name cannot be empty.'
+            }]);
+            finalModelName = modelPrompt.modelNameManual.trim();
+        }
+    } else { // Non-interactive
+         if (!finalModelName || finalModelName === 'Unknown Model') {
+             console.error("Automatic check failed: Could not determine AVR Model Name.");
+             return false;
+         }
+         console.log(`Using automatically determined model name: "${finalModelName}"`);
+    }
+    if (!finalModelName || finalModelName === 'Unknown Model') { // Final check
+        console.error("Configuration aborted: Final Model Name could not be determined.");
+        return false;
+    }
+
+
+    // --- Stage 5: Connect & Get Status (operational data) ---
+    let socket;
+    let avrOperationalData = null;
+    try {
+        socket = await connectToAVR(targetIp, AVR_CONTROL_PORT, CONFIG.timeouts.connection);
+        console.log(`Connected to ${targetIp}. Fetching operational status...`);
+        avrOperationalData = await getAvrInfoAndStatus(socket, CONFIG.timeouts.command);
+    } catch (err) { /* ... */ return false; }
+    finally { if (socket && !socket.destroyed) socket.end(); console.log(`Connection to ${targetIp} closed.`); }
+
+
+    // --- Stage 6: Format and Save ---
+    try {
+       const finalDetails = {
+           ...avrOperationalData, // Has ip, rawChSetup, ampAssignString, assignBin, eqTypeString
+           modelName: finalModelName,
+           manufacturer: selectedAvrInfo?.manufacturer || '', // From UPnP if available
+           friendlyName: selectedAvrInfo?.friendlyName || '', // From UPnP if available
+       };
+       const frontendData = formatDataForFrontend(finalDetails);
+       console.log(`\nSaving configuration to ${CONFIG_FILENAME} for model "${frontendData.targetModelName}"...`);
+       fs.writeFileSync(CONFIG_FILEPATH, JSON.stringify(frontendData, null, 2));
+       console.log('Configuration saved successfully.');
+       cachedAvrConfig = frontendData;
+       return true;
+    } catch (formatSaveError) { /* ... */ return false; }
+}
+
+// Inside main.js
+
+async function runFullDiscoveryAndSave(interactive = true) {
     console.log('\nStarting AVR discovery...');
     const discovery = new UPNPDiscovery(CONFIG.timeouts.discovery);
     let devices = [];
     try {
         devices = await discovery.discover();
-        console.log(`Discovery finished. Found ${devices.length} potential UPnP devices.`);
-    } catch (error) {
-        console.error('Discovery process failed:', error);
-        console.log("Please check network connection and firewall settings.");
-        return false; 
-    }
+        console.log(`Discovery finished. Found ${devices.length} distinct UPnP device descriptions.`);
+        // console.log("DEBUG: All discovered device descriptions:", JSON.stringify(devices, null, 2));
+    } catch (error) { /* ... error handling ... */ return false; }
+
+    // --- Filter based on Keywords ---
     const potentialAvrs = devices.filter(dev =>
-         dev.modelName && dev.modelName !== 'Unknown Model' && 
+         dev.modelName && dev.modelName !== 'Unknown Model' && // Must have a model name attempt
          (/Denon|Marantz/i.test(dev.manufacturer || '') ||
          /AVR|Receiver|SR|NR|AV|Cinema/i.test(dev.friendlyName || '') ||
          /AVR|SR|NR|AV|Cinema/i.test(dev.modelName || ''))
     );
-    console.log(`Found ${potentialAvrs.length} potential Denon/Marantz AVRs.`);
-    let selectedAvr = null;
-    if (potentialAvrs.length === 0) {
-        console.log('No suitable Denon/Marantz AVR found on the network.');
-        return false;
-    } else if (potentialAvrs.length === 1) {
-        selectedAvr = potentialAvrs[0];
-        console.log(`Automatically selected AVR: ${selectedAvr.friendlyName} (${selectedAvr.manufacturer} ${selectedAvr.modelName}) at ${selectedAvr.address}`);
+    console.log(`Found ${potentialAvrs.length} potential Denon/Marantz descriptions after filtering.`);
+
+    // --- Group by IP Address ---
+    const groupedByIp = potentialAvrs.reduce((acc, device) => {
+      const ip = device.address;
+      if (!acc[ip]) {
+        acc[ip] = []; // Initialize array for this IP
+      }
+      acc[ip].push(device); // Add device to this IP group
+      return acc;
+    }, {}); // Start with an empty object
+
+    const uniqueIPs = Object.keys(groupedByIp);
+    console.log(`Found ${uniqueIPs.length} unique IP address(es) for potential AVRs.`);
+
+    // --- Selection Logic based on Unique IPs ---
+    let targetIp = null;
+    let modelName = null; // Model name from selected description
+    let initialFriendlyName = null;
+    let modelSource = "None";
+    let selectedAvrInfo = null; // Store the chosen device object
+
+    if (uniqueIPs.length === 0) {
+        console.log('No suitable Denon/Marantz devices identified.');
+        // Proceed to manual IP entry if interactive
+    } else if (uniqueIPs.length === 1) {
+        targetIp = uniqueIPs[0];
+        // Choose the 'best' description from this single IP group
+        // Prioritize entries with non-generic model names or non-empty friendly names
+        const descriptionsForIp = groupedByIp[targetIp];
+        selectedAvrInfo = descriptionsForIp.find(d => d.modelName && !/DigitalMediaAdapter|MediaRenderer/i.test(d.modelName)) || // Prefer non-generic model
+                         descriptionsForIp.find(d => d.friendlyName) || // Then prefer one with friendly name
+                         descriptionsForIp[0]; // Otherwise just take the first one
+        modelName = selectedAvrInfo.modelName;
+        initialFriendlyName = selectedAvrInfo.friendlyName;
+        modelSource = "UPnP Description XML";
+        console.log(`Automatically selected single potential AVR at ${targetIp} (reported as: ${selectedAvrInfo.manufacturer}/${modelName})`);
     } else {
-        if (interactive) {
-            selectedAvr = await UPNPDiscovery.interactiveDeviceSelection(potentialAvrs);
-            if (!selectedAvr) {
-                console.log("No device selected.");
-                return false;
-            }
-            console.log(`Selected AVR: ${selectedAvr.friendlyName} at ${selectedAvr.address}`);
+        // Multiple distinct IPs found
+        if (!interactive) {
+            console.log("Multiple potential AVR IPs found. Cannot auto-select.");
+            // Fail non-interactive check here? Or proceed without IP? Let's fail.
+             return false;
         } else {
-            console.log('Multiple AVRs found. Run Option 1 to select interactively.');
-            return false; 
+            console.warn(`Multiple potential AVRs found at different IP addresses.`);
+            // Create a list for the user to choose from, one representative per IP
+            const choicesForPrompt = uniqueIPs.map(ip => {
+                // Select the 'best' description for this IP to display
+                const descriptions = groupedByIp[ip];
+                const representative = descriptions.find(d => d.modelName && !/DigitalMediaAdapter|MediaRenderer/i.test(d.modelName)) ||
+                                      descriptions.find(d => d.friendlyName) ||
+                                      descriptions[0];
+                // Return the representative object for interactive selection
+                return representative;
+            });
+
+            selectedAvrInfo = await UPNPDiscovery.interactiveDeviceSelection(choicesForPrompt); // Pass the de-duplicated list
+
+            if (selectedAvrInfo) {
+                targetIp = selectedAvrInfo.address;
+                modelName = selectedAvrInfo.modelName;
+                initialFriendlyName = selectedAvrInfo.friendlyName;
+                modelSource = "UPnP Description XML (User Selection)";
+                console.log(`User selected AVR: ${modelName} at ${targetIp}`);
+            } else {
+                console.log("No device selected by user.");
+                // Proceed to manual IP entry
+            }
         }
     }
+
+    // --- Manual IP Entry (If needed and interactive) ---
+    if (!targetIp && interactive) {
+        console.log("\nNo AVR selected or found via UPnP.");
+         try {
+             const ipAnswer = await inquirer.prompt([{ /* ... manual IP prompt ... */ }]);
+             targetIp = ipAnswer.manualIp;
+             console.log(`Using manually entered IP: ${targetIp}`);
+             modelSource = "Manual IP (Model Unknown)"; // Reset model source
+             modelName = null; // Clear any previously guessed model name
+             selectedAvrInfo = { address: targetIp }; // Create basic info object
+         } catch (promptError) { /* ... */ return false; }
+    } else if (!targetIp && !interactive) {
+         console.error("Automatic check failed: No AVR identified.");
+         return false;
+    }
+    if (!targetIp) { console.error("Configuration aborted: No target IP."); return false; }
+
+
+    // --- Try /goform/ XML (If model still unknown) ---
+    if (!modelName || modelName === 'Unknown Model') {
+        console.log(`Model name unknown or invalid from UPnP. Trying /goform/ endpoint on ${targetIp}...`);
+        const goformModel = await fetchModelFromGoform(targetIp); // This function needs targetIp
+        if (goformModel && goformModel !== 'Unknown Model') {
+            // *** Important: Only update modelName if goform provides something ***
+            // *** Don't overwrite a potentially valid modelName from UPnP with null from goform ***
+            modelName = goformModel;
+            modelSource = "/goform/ XML";
+            console.log(`Model name identified as "${modelName}" via /goform/.`);
+        } else {
+            console.log("Could not get model name from /goform/ endpoint.");
+            if (modelSource !== "UPnP Description XML") modelSource = "None Found"; // Update source only if UPnP didn't provide one
+        }
+    }
+
+    // --- Manual Model Name (If still needed and interactive) ---
+    let finalModelName = modelName; // Use automatically found one if available
+     if (interactive) {
+         let promptForModel = false;
+         if (finalModelName && finalModelName !== 'Unknown Model') {
+             // Ask user to confirm the automatically found name
+             const confirm = await inquirer.prompt([{ /* ... */
+                 type: 'confirm',
+                 name: 'isCorrect',
+                 message: `Is "${finalModelName}" the correct model for device at ${targetIp}? (Source: ${modelSource})`,
+                 default: true
+             }]);
+             if (!confirm.isCorrect) { finalModelName = null; promptForModel = true; }
+         } else {
+             promptForModel = true; // No model found automatically
+         }
+         if (promptForModel) {
+            console.log("\nPlease manually enter the model name."); // Added context
+            const modelPrompt = await inquirer.prompt([
+               {
+                 type: 'input',
+                 name: 'modelNameManual', // Keep this name consistent
+                 message: 'Please enter the correct AVR Model Name (e.g., SR6011, X3800H):',
+                 validate: input => (input && input.trim().length > 0) ? true : 'Model name cannot be empty.'
+                }
+            ]);
+            finalModelName = modelPrompt.modelNameManual.trim();
+        }
+     } else { /* ... non-interactive logic ... */
+          if (!finalModelName || finalModelName === 'Unknown Model') { return false; }
+     }
+     if (!finalModelName || finalModelName === 'Unknown Model') { return false; }
+
+
+    // --- Connect & Get Status ---
+    // ... (Connect using targetIp, call getAvrInfoAndStatus) ...
     let socket;
+    let avrOperationalData = null;
     try {
-        socket = await connectToAVR(selectedAvr.address, AVR_CONTROL_PORT, CONFIG.timeouts.connection);
-        console.log("Connected. Fetching detailed configuration...");
-        const avrInfo = await getAvrInfoAndStatus(socket, CONFIG.timeouts.command);
-        const fullDetails = {
-             ...selectedAvr, 
-             ...avrInfo     
-         };
-        if (!fullDetails.ip || !fullDetails.modelName || fullDetails.modelName === '*Unknown') {
-             throw new Error("Failed to retrieve essential details (IP, Model Name) from the AVR.");
-        }
-        //console.log("Formatting data for configuration file...");
-        const frontendData = formatDataForFrontend(fullDetails);
-        console.log(`Saving configuration to ${CONFIG_FILENAME}...`);
-        fs.writeFileSync(CONFIG_FILEPATH, JSON.stringify(frontendData, null, 2));
-        console.log('Configuration saved successfully.');
-        cachedAvrConfig = frontendData; 
-        return true; 
-    } catch (err) {
-        console.error(`Error connecting to or getting config from ${selectedAvr.address}: ${err.message}`);
-        return false; 
-    } finally {
-        if (socket) {
-            socket.end();
-            console.log(`Connection to ${selectedAvr.address} closed.`);
-        }
-    }
+        socket = await connectToAVR(targetIp, AVR_CONTROL_PORT, CONFIG.timeouts.connection);
+        console.log(`Connected to ${targetIp}. Reading configuration...`);
+        avrOperationalData = await getAvrInfoAndStatus(socket, CONFIG.timeouts.command);
+    } catch (err) { /* ... */ return false; }
+    finally { if (socket && !socket.destroyed) socket.end(); console.log(`Connection to ${targetIp} closed.`); }
+
+
+    // --- Format and Save ---
+    try {
+       const finalDetails = {
+           ...avrOperationalData, // Has ip, rawChSetup, ampAssignString, assignBin, eqTypeString
+           modelName: finalModelName,
+           // Use manufacturer/friendlyName from the selected UPnP device *if* one was selected
+           manufacturer: selectedAvrInfo?.manufacturer || '',
+           friendlyName: selectedAvrInfo?.friendlyName || initialFriendlyName || '', // Use initial if selected one is bad
+       };
+       const frontendData = formatDataForFrontend(finalDetails);
+       console.log(`\nSaving configuration to ${CONFIG_FILENAME} for model "${frontendData.targetModelName}"...`);
+       fs.writeFileSync(CONFIG_FILEPATH, JSON.stringify(frontendData, null, 2));
+       console.log('Configuration saved successfully.');
+       cachedAvrConfig = frontendData;
+       return true;
+    } catch (formatSaveError) { /* ... */ return false; }
 }
 
 function loadConfigFromFile() {
@@ -492,22 +873,22 @@ function loadConfigFromFile() {
 async function mainMenu() {
     const configExists = fs.existsSync(CONFIG_FILEPATH);
     const configOptionName = configExists
-        ? "1. Replace AVR Configuration File"
-        : "1. Create AVR Configuration File";
+        ? "1. Replace AVR configuration file"
+        : "1. Create AVR configuration cile";
     const choices = [
         { name: configOptionName, value: 'config' },
-        { name: '2. Run Optimization (Opens A1Evo in browser)', value: 'optimize' },
-        { name: '3. Transfer Calibration', value: 'transfer' },
+        { name: '2. Start optimization (opens A1 Evo in your browser)', value: 'optimize' },
+        { name: '3. Transfer calibration', value: 'transfer' },
         new inquirer.Separator(),
         { name: 'Exit', value: 'exit' },
     ];
     if (!configExists) { 
-         choices[1].name += ' (Requires Config File)'; 
+         choices[1].name += ' (requires config file)'; 
          choices[1].disabled = true;
-         choices[2].name += ' (Requires Config File)'; 
+         choices[2].name += ' (requires config file)'; 
          choices[2].disabled = true;
     }
-    choices[2].name += ' (Requires Optimization Result File)';
+    choices[2].name += ' (requires .oca calibration file)';
     
     const answers = await inquirer.prompt([
         {
@@ -544,14 +925,10 @@ async function mainMenu() {
             }
             console.log('\n--- Starting Optimization ---');
             const optimizationUrl = `http://localhost:${SERVER_PORT}/`;
-            //console.log(`Opening ${optimizationUrl} in your browser...`);
-            //console.log(`A1Evo will automatically load '${CONFIG_FILENAME}' from the server.`);
-            //console.log(`>>> NOTE: A1Evo.html will likely save its output calibration file`);
-            //console.log(`>>> (e.g., *.oca) to your browser's default Downloads folder.`);
-            //console.log(`>>> You will need this file for Option 3.`);
+            
             try {
                 await open(optimizationUrl, {wait: false});
-                console.log("Browser opened. Please complete the optimization process in A1Evo.");
+                console.log("A1 Evo is now opened in your web browser. Please complete the optimization process there!");
             } catch (error) {
                 console.error(`Error opening browser: ${error.message}`);
             } finally {
@@ -649,6 +1026,14 @@ async function initializeApp() {
                 }
             });
         }
+
+        else if (req.url === '/api/get-app-path' && req.method === 'GET') {
+            //console.log("Request received for /api/get-app-path");
+            res.writeHead(200, {'Content-Type': 'application/json'});
+            // Send the APP_BASE_PATH calculated at startup
+            res.end(JSON.stringify({ appPath: APP_BASE_PATH }));
+        }
+
         else {
             res.writeHead(404);
             res.end('Not Found');
@@ -750,14 +1135,14 @@ function launchRew(rewPath, memoryArg = "-Xmx4096m") {
             args = [memoryArg, apiArg];
         }
         try {
-            console.log(`Executing: ${cmd} ${args.join(' ')}`);
+            //console.log(`Executing: ${cmd} ${args.join(' ')}`);
             const child = spawn(cmd, args, { detached: true, stdio: 'ignore', shell: true }); 
             child.on('error', (err) => {
                 console.error(`Error launching REW: ${err.message}`);
                 resolve(false);
             });
             child.unref();
-            console.log("REW launch command executed.");
+            //console.log("REW launch command executed.");
             resolve(true); 
 
         } catch (err) {
@@ -767,7 +1152,7 @@ function launchRew(rewPath, memoryArg = "-Xmx4096m") {
     });
 }
 
-function checkRewApi(port = 4735, timeout = 1500) {
+function checkRewApi2(port = 4735, timeout = 1500) {
     return new Promise((resolve) => {
         console.log(`Checking for REW API on localhost:${port}...`);
         const socket = new net.Socket();
@@ -798,30 +1183,84 @@ function checkRewApi(port = 4735, timeout = 1500) {
     });
 }
 
+function checkRewApi(port = 4735, timeout = 2000) {
+    return new Promise((resolve) => {
+        const options = {
+            hostname: 'localhost',
+            port: port,
+            path: '/version',
+            method: 'GET',
+            timeout: timeout,
+        };
+
+        //console.log(`Checking REW API status at http://localhost:${port}/version ...`);
+
+        const req = http.request(options, (res) => {
+            let responseBody = '';
+            res.setEncoding('utf8');
+
+            res.on('data', (chunk) => {
+                responseBody += chunk; // Collect body just in case we need it for debug
+            });
+
+            res.on('end', () => {
+                if (res.statusCode === 200) {
+                    //console.log(`REW is open and its API server is running`);
+                    resolve(true); // Success!
+                } else {
+                    console.warn(`REW responded with unexpected status: ${res.statusCode}`);
+                    resolve(false); // API is there but not giving the expected OK for /version
+                }
+            });
+        });
+
+        // Handle errors during the request (e.g., connection refused, timeout)
+        req.on('error', (err) => {
+            // ECONNREFUSED means nothing is listening on that port
+            if (err.code === 'ECONNREFUSED') {
+                 console.log(`REW API connection refused on port ${port}. (Not running or blocked?)`);
+            } else {
+                console.warn(`REW API check error: ${err.message} (Code: ${err.code})`);
+            }
+            resolve(false); // Any error means API is not ready
+        });
+
+        // Handle explicit timeout event
+        req.on('timeout', () => {
+            console.warn(`REW API check timed out after ${timeout}ms.`);
+            req.destroy(); // Clean up the request socket
+            resolve(false);
+        });
+
+        // Send the request
+        req.end();
+    });
+}
+
+
 async function ensureRewReady() {
     console.log("\n--- Checking REW Status ---");
     const platform = os.platform();
     const procName = platform === 'win32' ? 'roomeqwizard.exe' : (platform === 'darwin' ? 'REW' : 'roomeqwizard'); 
-    const rewApiPort = 4735; 
     let isRunning = await isProcessRunning(procName);
     //console.log(`Is REW process (${procName}) running? ${isRunning}`);
     if (isRunning) {
         const isApiListening = await checkRewApi(rewApiPort);
         if (isApiListening) {
-            console.log("REW is running and API port seems active. Good to go!");
+            console.log("REW is open and API server seems running. Good to go!");
             return true;
         } else {
             //console.log("REW is running, but API port check failed.");
              const { proceedAnyway } = await inquirer.prompt([{
                  type: 'confirm',
                  name: 'proceedAnyway',
-                 message: `REW seems to be running, but the API on port ${rewApiPort} isn't responding.\nThis might be okay if REW is using a different port or starting up.\nDo you want to continue and open A1Evo anyway?`,
+                 message: `REW seems to be running, but the API on port ${rewApiPort} isn't responding.\nThis might be okay if REW is using a different port or starting up.\nDo you want to continue and open A1 Evo anyway?`,
                  default: true
              }]);
              return proceedAnyway;
         }
     }
-    console.log("REW process not detected. Attempting to find and launch...");
+    console.log("Room EQ Wizard is not running!");
     const rewPath = findRewPath();
     if (!rewPath) {
         console.error("Could not automatically find REW installation in common locations.");
@@ -829,30 +1268,30 @@ async function ensureRewReady() {
          const { proceedManual } = await inquirer.prompt([{
              type: 'confirm',
              name: 'proceedManual',
-             message: `Could not find REW. Please start it manually with the API enabled.\nContinue to open A1Evo once REW is ready?`,
+             message: `Could not find REW. Please start it manually and start its API server.\nContinue to open A1 Evo once REW is ready?`,
              default: true
          }]);
         return proceedManual;
     }
-    const memoryArg = "-Xmx8192m";
+    const memoryArg = "-Xmx4096m";
     const launchInitiated = await launchRew(rewPath, memoryArg);
     if (!launchInitiated) {
         console.error("Failed to execute REW launch command.");
          const { proceedError } = await inquirer.prompt([{
              type: 'confirm',
              name: 'proceedError',
-             message: `Failed to start REW automatically. Please start it manually with the API enabled.\nContinue to open A1Evo once REW is ready?`,
+             message: `Failed to start REW automatically. Please start it manually and start its API server.\nContinue to open A1 Evo once REW is ready?`,
              default: true
          }]);
         return proceedError;
     }
-    const waitTime = 8000; 
-    console.log(`REW launch initiated. Waiting ${waitTime / 1000} seconds for API server to start...`);
+    const waitTime = 5000; 
+    //console.log(`REW launch initiated. Waiting ${waitTime / 1000} seconds for API server to start...`);
     await new Promise(resolve => setTimeout(resolve, waitTime));
 
     const isApiListeningAfterLaunch = await checkRewApi(rewApiPort);
     if (isApiListeningAfterLaunch) {
-        console.log("REW launched and API port seems active. Proceeding.");
+        console.log("REW launched and API server seems to be running. Proceeding...");
         return true;
     } else {
         console.error(`Launched REW, but API port ${rewApiPort} did not become active within ${waitTime / 1000} seconds.`);
@@ -860,7 +1299,7 @@ async function ensureRewReady() {
          const { proceedFail } = await inquirer.prompt([{
              type: 'confirm',
              name: 'proceedFail',
-             message: `Started REW, but couldn't confirm API status on port ${rewApiPort}.\nContinue to open A1Evo anyway?`,
+             message: `Started REW, but couldn't confirm API status on port ${rewApiPort}.\nContinue to open A1 Evo anyway?`,
              default: true
          }]);
         return proceedFail;
