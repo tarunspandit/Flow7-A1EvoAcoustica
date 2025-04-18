@@ -348,7 +348,7 @@ function sendTelnetCommands(ip, port = 23, lpf4LFE = 120) {
       if (selectedPreset) {
         commands.push(`SPPR ${selectedPreset}`);
       }
-      commands.push('SSSWM LFE', 'SSSWO LFE', `SSLFL ${lpf4LFE}`);
+      commands.push('ZMON', 'SSSWM LFE', 'SSSWO LFE', `SSLFL ${lpf4LFE}`);
       
       // Send commands with delay between each
       let commandIndex = 0;
@@ -366,7 +366,7 @@ function sendTelnetCommands(ip, port = 23, lpf4LFE = 120) {
         client.write(command + '\r');
         
         // Wait for response before sending next command
-        setTimeout(sendNextCommand, 500);
+        setTimeout(sendNextCommand, 3000);
         commandIndex++;
       }
       
@@ -386,7 +386,7 @@ function sendTelnetCommands(ip, port = 23, lpf4LFE = 120) {
           hasHandledPreset = true;
           proceedWithCommands();
         }
-      }, 2000);
+      }, 5000);
     });
     
     client.on('data', (data) => {
@@ -1356,7 +1356,7 @@ function generatePackets(coeffsHex, channelConfig, tc, sr, channelByte) {
     // The script will naturally reach the end here. The actual exit
     // with the correct code (0 or 1) should happen within the main
     // try block (after successful completion) or the catch block (on error).
-    console.log("[sendFilters.js] Reached end of finally block.");
+    //console.log("[sendFilters.js] Reached end of finally block.");
 
   } // End of finally block
 
