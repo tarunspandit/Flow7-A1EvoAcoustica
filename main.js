@@ -25,12 +25,17 @@ const HTML_FILENAME = 'A1Evo.html';
 let HTML_FILEPATH;
 
 if (process.pkg) {
-  HTML_FILEPATH = path.join(__dirname, HTML_FILENAME);
+    
+    HTML_FILEPATH = path.resolve(__dirname, '..', HTML_FILENAME);
+   
 } else {
-  HTML_FILEPATH = path.resolve(__dirname, HTML_FILENAME);
+   
+    HTML_FILEPATH = path.resolve(__dirname, HTML_FILENAME);
 }
 
-//console.log(`[Debug] Using HTML path: ${HTML_FILEPATH}`);
+console.log(`[Info] Running in ${process.pkg ? 'packaged' : 'development'} mode.`);
+console.log(`[Info] Calculated HTML file path: ${HTML_FILEPATH}`);
+
 
 function getBasePath() {
   if (process.pkg) {
