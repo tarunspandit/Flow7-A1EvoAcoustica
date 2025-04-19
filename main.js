@@ -19,35 +19,50 @@ let mainServer = null;
 
 function getBasePath() {
   if (process.pkg) {
+    // path.dirname(process.execPath) gives the directory of the .exe itself
     return path.dirname(process.execPath);
   } else {
-    return __dirname;
+    return __dirname; // Development: project root
   }
 }
-
-const APP_BASE_PATH = getBasePath();
+const APP_BASE_PATH = getBasePath(); // Directory of the .exe file
 const CONFIG_FILENAME = 'receiver_config.avr';
+// Place config file next to the executable
 const CONFIG_FILEPATH = path.join(APP_BASE_PATH, CONFIG_FILENAME);
 // --- End external file path ---
 
 
-const HTML_FILENAME = 'A1Evo.html';
+const HTML_FILENAME = 'A1Evo.html'; 
 let HTML_FILEPATH;
 
 if (process.pkg) {
-    const snapshotRoot = process.cwd();
-    HTML_FILEPATH = path.join(snapshotRoot, HTML_FILENAME);
-
-    console.log(`[PKG MODE] Platform: ${process.platform}`);
-    console.log(`[PKG MODE] __dirname: ${__dirname}`);
-    console.log(`[PKG MODE] process.cwd(): ${snapshotRoot}`);
-    console.log(`[PKG MODE] Calculated HTML Path: ${HTML_FILEPATH}`);
+    // --- Packaged Mode ---
     
+    HTML_FILEPATH = path.join(__dirname, HTML_FILENAME); // <<< CORRECT PATH based on logs
+
+    // --- Diagnostics ---
+    console.log(`Platform: ${process.platform}`);
+    //console.log(`[PKG MODE] __dirname: ${__dirname}`);
+    //console.log(`[PKG MODE] Calculated HTML Path: ${HTML_FILEPATH}`);
+    // --- End Diagnostics ---
+
 } else {
     // --- Development Mode ---
-    // Use __dirname as usual.
+    // HTML file is expected next to main.js
     HTML_FILEPATH = path.join(__dirname, HTML_FILENAME);
 }
+
+// --- Verification ---
+//console.log(`Attempting to access HTML file at: ${HTML_FILEPATH}`);
+if (!fs.existsSync(HTML_FILEPATH)) {
+    // If this still fails, something is very weird with the build/fs access.
+    console.error(`[!!! ERROR !!!] File system check failed for: ${HTML_FILEPATH}`);
+    throw new Error(`Required file ${HTML_FILENAME} not found at ${HTML_FILEPATH}! Cannot start optimization.`);
+}
+
+// --- External Config File Handling ---
+console.log(`Base path for external files: ${APP_BASE_PATH}`); // Where the .exe is
+console.log(`Attempting to load configuration from: ${CONFIG_FILEPATH}`);
 
 
 function runNodeScript(scriptPath, dataToSend = null) {
