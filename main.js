@@ -1,6 +1,6 @@
 const os = require('os');
 const inquirer = require('inquirer');
-const { spawn, exec } = require('child_process');
+const {spawn, exec} = require('child_process');
 const open = require('open');
 const http = require('http');
 const dgram = require('dgram');
@@ -21,7 +21,16 @@ const APP_BASE_PATH = getBasePath();
 const CONFIG_FILENAME = 'receiver_config.avr';
 const CONFIG_FILEPATH = path.join(APP_BASE_PATH, CONFIG_FILENAME);
 const HTML_FILENAME = 'A1Evo.html';
-const HTML_FILEPATH = path.resolve(__dirname, HTML_FILENAME);
+
+let HTML_FILEPATH;
+
+if (process.pkg) {
+  HTML_FILEPATH = path.join(__dirname, HTML_FILENAME);
+} else {
+  HTML_FILEPATH = path.resolve(__dirname, HTML_FILENAME);
+}
+
+//console.log(`[Debug] Using HTML path: ${HTML_FILEPATH}`);
 
 function getBasePath() {
   if (process.pkg) {
@@ -976,7 +985,7 @@ function findRewPath() {
         console.warn("Automatic REW path detection on Linux is limited. Checking common PATH locations.");
         return 'roomeqwizard';
     }
-    console.log("Checking common REW installation paths...");
+    //console.log("Checking common REW installation paths...");
     for (const p of commonPaths) {
         if (fs.existsSync(p)) {
              if (platform === 'darwin') {
@@ -1102,7 +1111,7 @@ async function ensureRewReady() {
     //console.log("\n--- Checking REW Status & API Availability ---");
     const platform = os.platform();
     const procNameBase = platform === 'win32' ? 'roomeqwizard.exe' : 'REW'; 
-    console.log(`Checking if REW process (${procNameBase}) is running...`);
+    console.log(`Checking if REW (${procNameBase}) is running...`);
     let isRunning = await isProcessRunning(procNameBase); 
     if (!isRunning && platform === 'darwin') {
         console.log("REW process not found, checking for Java process running REW...");
@@ -1131,7 +1140,7 @@ async function ensureRewReady() {
          }]);
          return proceedAnyway; 
     }
-    console.log("REW process is not running.");
+    console.log("REW is not running.");
     const rewPath = findRewPath(); 
     if (!rewPath) {
         console.error("Could not automatically find REW installation in common locations.");
