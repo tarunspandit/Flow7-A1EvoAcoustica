@@ -25,6 +25,22 @@ jobs:
     steps:
       - name: 🧾 Checkout code
         uses: actions/checkout@v4
+        
+# *** ADD THIS STEP ***
+      - name: 🧐 Verify Checkout Contents
+        run: |
+          echo "Listing files in current directory:"
+          ls -la
+          echo "Checking specifically for A1Evo.html:"
+          if [ -f "A1Evo.html" ]; then
+            echo "✅ A1Evo.html found!"
+          else
+            echo "❌ ERROR: A1Evo.html NOT FOUND after checkout!"
+            # Optionally fail the build here if needed: exit 1
+          fi
+        shell: bash
+
+        
 
       - name: 🟢 Set up Node.js v18
         uses: actions/setup-node@v4
