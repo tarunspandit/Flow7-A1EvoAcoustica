@@ -906,7 +906,7 @@ async function mainMenu() {
 }
 async function initializeApp() {
     console.log('-------------------------');
-    console.log('  A1 Evo Acoustica v1.0  ');
+    console.log('  A1 Evo Acoustica v1.2  ');
     console.log('-------------------------');
     mainServer = http.createServer((req, res) => {
         const url = req.url;
