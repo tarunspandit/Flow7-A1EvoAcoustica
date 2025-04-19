@@ -7,7 +7,10 @@
   "type": "commonjs",
   "scripts": {
     "start": "node main.js",
-    "build": "pkg . --targets node18-linux-x64, node18-macos-x64,node18-macos-arm64 --output a1-evo-acoustica"
+    "build-linux": "pkg main.js --targets node18-linux-x64 --output a1-evo-acoustica-linux",
+    "build-macos-x64": "pkg main.js --targets node18-macos-x64 --output a1-evo-acoustica-macos-x64",
+    "build-macos-arm64": "pkg main.js --targets node18-macos-arm64 --output a1-evo-acoustica-macos-arm64",
+    "build": "npm run build-linux && npm run build-macos-x64 && npm run build-macos-arm64"
   },
   "author": "OCA",
   "license": "ISC",
