@@ -28,9 +28,27 @@ function getBasePath() {
 const APP_BASE_PATH = getBasePath();
 const CONFIG_FILENAME = 'receiver_config.avr';
 const CONFIG_FILEPATH = path.join(APP_BASE_PATH, CONFIG_FILENAME);
-const HTML_FILENAME = 'A1Evo.html';
+// --- End external file path ---
 
-const HTML_FILEPATH = path.join(__dirname, HTML_FILENAME);
+
+const HTML_FILENAME = 'A1Evo.html';
+let HTML_FILEPATH;
+
+if (process.pkg) {
+    const snapshotRoot = process.cwd();
+    HTML_FILEPATH = path.join(snapshotRoot, HTML_FILENAME);
+
+    console.log(`[PKG MODE] Platform: ${process.platform}`);
+    console.log(`[PKG MODE] __dirname: ${__dirname}`);
+    console.log(`[PKG MODE] process.cwd(): ${snapshotRoot}`);
+    console.log(`[PKG MODE] Calculated HTML Path: ${HTML_FILEPATH}`);
+    
+} else {
+    // --- Development Mode ---
+    // Use __dirname as usual.
+    HTML_FILEPATH = path.join(__dirname, HTML_FILENAME);
+}
+
 
 function runNodeScript(scriptPath, dataToSend = null) {
     return new Promise((resolve, reject) => {
