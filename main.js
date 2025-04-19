@@ -5,7 +5,7 @@ const open = require('open');
 const http = require('http');
 const dgram = require('dgram');
 const net = require('net');
-const { URL } = require('url');
+const {URL} = require('url');
 const path = require('path');
 const fs = require('fs');
 const SERVER_PORT = 3000;
@@ -17,6 +17,14 @@ let cachedAvrConfig = null;
 let receivedOptimizationData = null;
 let mainServer = null;
 
+function getBasePath() {
+  if (process.pkg) {
+    return path.dirname(process.execPath);
+  } else {
+    return __dirname;
+  }
+}
+
 const APP_BASE_PATH = getBasePath();
 const CONFIG_FILENAME = 'receiver_config.avr';
 const CONFIG_FILEPATH = path.join(APP_BASE_PATH, CONFIG_FILENAME);
@@ -25,25 +33,11 @@ const HTML_FILENAME = 'A1Evo.html';
 let HTML_FILEPATH;
 
 if (process.pkg) {
-    
     HTML_FILEPATH = path.resolve(__dirname, '..', HTML_FILENAME);
-   
 } else {
-   
     HTML_FILEPATH = path.resolve(__dirname, HTML_FILENAME);
 }
 
-console.log(`[Info] Running in ${process.pkg ? 'packaged' : 'development'} mode.`);
-console.log(`[Info] Calculated HTML file path: ${HTML_FILEPATH}`);
-
-
-function getBasePath() {
-  if (process.pkg) {
-    return path.dirname(process.execPath);
-  } else {
-    return __dirname;
-  }
-}
 function runNodeScript(scriptPath, dataToSend = null) {
     return new Promise((resolve, reject) => {
         console.log(`\n--- Running ${path.basename(scriptPath)} ---`);
@@ -1198,8 +1192,6 @@ async function ensureRewReady() {
         return true; 
     } else {
         console.error(`Launched REW, but the API on port ${rewApiPort} did not respond correctly within the wait time.`);
-        //console.error("Ensure REW launched successfully and that the '-api' flag or internal setting is enabling the API server.");
-        //console.error("Also check firewalls or if REW is configured to use a different API port.");
          const { proceedFail } = await inquirer.prompt([{
              type: 'confirm',
              name: 'proceedFail',

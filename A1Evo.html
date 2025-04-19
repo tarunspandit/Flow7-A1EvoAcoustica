@@ -3074,7 +3074,7 @@ function downloadOcaFile(ocaData, filename) {
     document.body.removeChild(downloadLink);
     URL.revokeObjectURL(urlBlob);
     console.log("Calibration file (.oca) download initiated:", filename);
-    alert(`Calibration file ${filename} is ready. Please save it in your main application folder or you will need to provide the path to this file during trasnfer (option 3).`);
+    alert(`Calibration file ${filename} is ready. Please save it in your main application folder or you will need to provide the path to this file during calibration transfer (option 3).`);
 } catch (error) {
     console.error("Error creating download link:", error);
     alert("Error trying to download the .oca file locally.");
