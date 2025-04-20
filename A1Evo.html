@@ -2053,7 +2053,7 @@ async function sortBass() {
     }
     console.log(`Forced bass boost: ${bassFill}dB; final AVR subwoofer volume: ${avrDelta}dB`);
   }
-  console.log(`Applied additional volume via filter hack: ${filterCompensation.toFixed(5)}dB`);
+  console.log(`Applied additional volume via filters hack: ${filterCompensation.toFixed(5)}dB`);
   await postNext('Add SPL offset', nSpeakers + 1, {offset: totalAdjustment});
   for (let i = 1; i <= nSubs; i++) customLevel[nSpeakers + i] = avrDelta + (subTrim[i] || 0);
   await alignFronts();
@@ -2061,7 +2061,7 @@ async function sortBass() {
   await postNext('Minimum phase version', nSpeakers + 1, {'include cal': true, 'append lf tail': false, 'append hf tail': false, 'frequency warping': false, 'replicate data': true});
   await new Promise((resolve) => setTimeout(resolve, speedDelay));
   await generateRoll(lowPass, nSpeakers + 2, true);
-  if (subRolloffSlope === "None") console.log(`Generating subwoofer filters to track target curve starting from ${hiPass}Hz`)
+  if (subRolloffSlope === "None") console.info(`Generating subwoofer filters to track target curve starting from ${hiPass}Hz`)
   const extendLow = lowPass * Math.pow(2, 0.5);
   await postNext('Arithmetic', [nSpeakers + 4, nSpeakers + 3], {function: "A / B", maxGain: subBoost, lowerLimit: hiPass, upperLimit: extendLow});
   await new Promise(resolve => setTimeout(resolve, speedDelay));
@@ -2124,7 +2124,7 @@ async function subHighpass(index, freq) {
   return Math.abs(magValue2 - magValue1 - 24) + Math.abs(magValue3 - magValue2 - 6);}
 async function alignFronts() {
   const sp1 = 1, sp2 = 2, sw1 = nSpeakers + 1;
-  console.infoBold("Optimizing crossover, delay, and inversion for Front L/R + Sub...");
+  console.info("Optimizing crossover, delay, and inversion for Front L/R + Sub...");
   await Promise.all([sp1, sp2, sw1].map(cleanFilters));
   const dB2Amp = dB => Math.pow(10, dB / 20);
   const toRad = deg => deg * Math.PI / 180;
@@ -2196,7 +2196,7 @@ async function alignFronts() {
     }
   }
   if (bestOverallConfig) {
-    console.infoBold(`Optimal Fronts Config: XO=${bestOverallConfig.freq}Hz, SubDelay=${(bestOverallConfig.ts * 1000).toFixed(4)}ms, SubInvert=${bestOverallConfig.subInverted}`);
+    console.infoBold(`Optimal front speakers configuration found => Xover: ${bestOverallConfig.freq}Hz, Subwoofer applied delay: ${(bestOverallConfig.ts * 1000).toFixed(4)}ms, Subwoofer inverted: ${bestOverallConfig.subInverted}`);
     customCrossover[sp1] = bestOverallConfig.freq;
     customCrossover[sp2] = bestOverallConfig.freq;
     await postNext('Offset t=0', nSpeakers + 1, { offset: bestOverallConfig.ts, unit: "seconds" });
@@ -2208,7 +2208,15 @@ async function alignFronts() {
       if (customDistance[i] > (minDist + maxDistanceLimit)) customDistance[i] = minDist + maxDistanceLimit;
     }
     if (minDist < 0) for (let i = 1; i <= nSpeakers + nSubs; i++) customDistance[i] -= minDist;
-    for (let i = 1; i <= nSpeakers + nSubs; i++) console.log(`${commandId[i]}: ${customDistance[i].toFixed(2)}m`);
+    console.infoBold('Final speaker and subwoofer disatnces:');
+    let maxDist = minDist;
+    for (let i = 1; i <= nSpeakers + nSubs; i++) {
+      if (customDistance[i] > maxDist) maxDist = customDistance[i];
+      console.log(`${commandId[i]}: ${customDistance[i].toFixed(2)}m (${(customDistance[i] * 3.28084).toFixed(2)}ft)`);
+    }
+    if ((maxDist - minDist) > 6) {
+      console.warn(`A1 Evo used 'extended' maximum speaker distance difference limit in your optimized set up (6m vs 7.35m). Do not edit distance settings in the receiver's setup menu as it may reset them back to defaults, disrupting calibration!`);
+    }
     if (customInvert[nSpeakers + 1]) {
       await postSafe(`${baseUrl}/${nSpeakers + 1}/command`, { command: "Invert" }, "Invert completed");
     }
@@ -2360,7 +2368,7 @@ async function optimizeSpeakers(sp1, sp2 = null, targetData) {
   console.info(`  >> Assigned Crossover frequency: ${customCrossover[sp1]}Hz to ${isPair ? `${commandId[sp1]} and ${commandId[sp2]} (pair)` : commandId[sp1]}`);
   if (isPair) customCrossover[sp2] = customCrossover[sp1];}
 async function refResults(){
-  console.infoBold(`Generating magnitude and phase correction filters for normal listening mode [Audyssey Flat]...`);
+  console.info(`Generating magnitude and phase correction filters for normal listening mode [Audyssey Flat]...`);
   for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {if (customInvert[i]) {customFilter[i] = customFilter[0].map((value) => -value);} else {customFilter[i] = customFilter[0];}}
   for (let i = 1; i <= nSpeakers; i++) {
     console.info(`${commandId[i]}`);
@@ -2922,7 +2930,7 @@ async function fixSubs4REW() {
   for (let i = indicesToDelete.length - 1; i >= 0; i--) await postDelete(indicesToDelete[i]);
   console.info(`All subwoofer measurements corrected!`);}
 async function lowVolumeFilters() {
-  console.log('Generating new set of filters for low volume listening mode [Audyssey Reference]...');
+  console.info('Generating new set of filters for low volume listening mode [Audyssey Reference]...');
   const spFilter = [];
   spFilter[0] = {
     "identifier": "speakerLovVolume",
