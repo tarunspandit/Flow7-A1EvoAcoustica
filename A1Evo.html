@@ -1983,7 +1983,7 @@ async function setVolumeLevels() {
   console.info(`Final target level:: ${targetLevel.toFixed(5)}dB`);
   const normalizedPath = targetCurvePath.replace(/\\/g, "/");
   tcName = normalizedPath.split("/").pop().replace(/\.[^/.]+$/, "").replace(/\s+/g, "");
-  tcName = `tc${tcName} ${targetLevel.toFixed(1)}dB`;
+  tcName = `tc${tcName}${targetLevel.toFixed(1)}dB`;
   await fetchREW(nSpeakers + 2, 'PUT', {title: tcName, notes: 'Remember game theory!'});}
 async function sortBass() {
   console.info('Anaylsing subwoofer capacity...');
@@ -2882,62 +2882,6 @@ async function promptSaveLog() {
   } else {
     console.log("Log save canceled by user!");
   }}
-async function generateOCA_old() {
-  const now = new Date();
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const month = months[now.getMonth()];
-  const day = String(now.getDate()).padStart(2, '0');
-  const hours = String(now.getHours()).padStart(2, '0');
-  const minutes = String(now.getMinutes()).padStart(2, '0');
-  const timestamp = `${month}${day}_${hours}${minutes}`;
-  let baseOca = {};
-  baseOca.A1EvoAcoustica = evoVersion;
-  baseOca.model = jsonContent.targetModelName;
-  baseOca.eqType = jsonContent.enMultEQType;
-  baseOca.hasGriffinLiteDSP = isGriffin;
-  baseOca.ampAssign = jsonContent.enAmpAssignType;
-  baseOca.ampAssignBin = jsonContent.ampAssignInfo;
-  baseOca.channels = jsonContent.detectedChannels.map(detectedChannel => {
-    const commandIdIndex = commandId.indexOf(detectedChannel.commandId);
-    const trimAdjustmentInDbs = customLevel[commandIdIndex];
-    const distanceInMeters = customDistance[commandIdIndex];
-    const filter = customFilter[commandIdIndex];
-    const filterLV = deqFilter[commandIdIndex];
-    let crossover = customCrossover[commandIdIndex];
-    let speakerType = crossover === null ? "E" : (crossover < 40 ? "L" : "S");
-    const channel = {
-      channelType: detectedChannel.enChannelType,
-      speakerType: speakerType,
-      distanceInMeters: distanceInMeters,
-      trimAdjustmentInDbs: trimAdjustmentInDbs,
-      filter: filter,
-      filterLV: filterLV,
-      commandId: detectedChannel.commandId
-    };
-    if (crossover != null) {channel.xover = crossover;}
-    return channel;});
-  baseOca.numberOfSubwoofers = nSubs;
-  baseOca.lpfForLFE = lpf4LFE;
-  let jsonData = JSON.stringify(baseOca, null, 2);
-  const blob = new Blob([jsonData], {type: 'application/json'});
-  const urlBlob = URL.createObjectURL(blob);
-  const downloadLink = document.createElement("a");
-  downloadLink.href = urlBlob;
-  !subRolloffEnabled ? ocafileName = `${timestamp}_${tcName}_swFill${bassFill}_eqBoost${subBoost}_A1EvoAcoustica_${evoVersion}.oca` :
-  ocafileName = `${timestamp}_${tcName}_swFill${bassFill}_eqBoost${subBoost}_swRoll${subRolloffFreq}_${subRolloffSlope}_A1EvoAcoustica_${evoVersion}.oca`
-    .replace(/\s+/g, '_')
-    .replace(/[^\w.-]/g, '_')
-    .replace(/\.+/g, '.')
-    .replace(/^_+|_+$/g, '')
-    .replace(/\((\d+)\.(\d+)dB\)/, '_$1p$2dB')
-    .replace(/(\d+)\.(\d+)dB/g, '$1p$2dB')
-    .replace(/_+/g, '_');
-  downloadLink.download = ocafileName;
-  document.body.appendChild(downloadLink);
-  downloadLink.click();
-  document.body.removeChild(downloadLink);
-  URL.revokeObjectURL(urlBlob);
-  return;}
 async function fixSubs4REW() {
   console.info(`Reversing 'Linkwitz Riley 250Hz 24dB/octave lowpass filter' applied by the AVR to REW subwoofer measurements...`);
   const antiLPF = {
@@ -3125,8 +3069,6 @@ async function generateOCA() {
       .replace(/[^\w.-]/g, '_')
       .replace(/\.+/g, '.')
       .replace(/^_+|_+$/g, '')
-      .replace(/\((\d+)\.(\d+)dB\)/, '_$1p$2dB')
-      .replace(/(\d+)\.(\d+)dB/g, '$1p$2dB')
       .replace(/_+/g, '_');
     downloadOcaFile(baseOca, ocafileName);
     console.log("generateOCA finished, download triggered.");
