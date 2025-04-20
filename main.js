@@ -36,11 +36,8 @@ const HTML_FILENAME = 'A1Evo.html';
 let HTML_FILEPATH;
 
 if (process.pkg) {
-    // --- Packaged Mode ---
-    
-    HTML_FILEPATH = path.join(__dirname, HTML_FILENAME); // <<< CORRECT PATH based on logs
-
-    // --- Diagnostics ---
+   
+    HTML_FILEPATH = path.join(__dirname, HTML_FILENAME);
     console.log(`Platform: ${process.platform}`);
     //console.log(`[PKG MODE] __dirname: ${__dirname}`);
     //console.log(`[PKG MODE] Calculated HTML Path: ${HTML_FILEPATH}`);
@@ -843,45 +840,50 @@ async function mainMenu() {
             }
             break;
         case 'transfer':
-             if (!cachedAvrConfig || !cachedAvrConfig.ipAddress) {
-                 console.error(`\nError: Cannot transfer calibration. Configuration (${CONFIG_FILENAME}) is missing or invalid.`);
-                 console.warn("Please run Option 1 first.");
-                 await mainMenu();
-                 break;
-             }
-             console.log("\n--- Transfer Calibration ---");
-             try {
-                 const targetIp = cachedAvrConfig.ipAddress;
-                 const scriptPath = path.join(__dirname, 'sendFilters.js'); 
-                 const nodePath = process.execPath; 
-                 if (!fs.existsSync(scriptPath)) {
-                     throw new Error(`Required script 'sendFilters.js' not found at ${scriptPath}`);
-                 }
-                 console.log(`Executing calibration transfer for target IP: ${targetIp}`);
-                 //console.log("The script will prompt you to select the .oca file.");
-                 console.log("-------------------------------------------------------------");
-                 const child = spawn(nodePath, [scriptPath, targetIp], { stdio: 'inherit' });
-                 await new Promise((resolve, reject) => {
-                     child.on('error', (spawnError) => {
-                         console.error(`\n[main.js] Failed to start sendFilters.js: ${spawnError.message}`);
-                         reject(spawnError); 
-                     });
-                     child.on('close', (code) => {
-                         console.log("-------------------------------------------------------------");
-                         if (code === 0) {
-                             console.log("Calibration transfer completed successfully!");
-                             console.log("-------------------------------------------------------------");
-                             resolve(); 
-                         } else {
-                             reject(new Error(`Filter transfer failed with exit code ${code}.`));
-                         }
-                     });
-                 });
-             } catch (error) {
-                 console.error(`\n[main.js] Error during calibration transfer step: ${error.message}`);
-             } finally {
-                await mainMenu(); 
-             }
+            if (!cachedAvrConfig || !cachedAvrConfig.ipAddress) {
+                console.error(`\nError: Cannot transfer calibration. Configuration (${CONFIG_FILENAME}) is missing or invalid.`);
+                console.warn("Please run Option 1 first.");
+                await mainMenu();
+                break;
+            }
+            console.log("\n--- Transfer Calibration ---");
+            try {
+                const targetIp = cachedAvrConfig.ipAddress;
+                const scriptPath = path.join(__dirname, 'sendFilters.js');
+                const nodePath = process.execPath;
+                if (!fs.existsSync(scriptPath)) {
+                    // This check might be redundant if pkg includes sendFilters.js, but doesn't hurt
+                    throw new Error(`Required script 'sendFilters.js' not found at ${scriptPath}`);
+                }
+                console.log(`Executing calibration transfer for target IP: ${targetIp}`);
+                console.log("-------------------------------------------------------------");
+
+                // *** ADD APP_BASE_PATH as the third argument ***
+                const args = [scriptPath, targetIp, APP_BASE_PATH];
+
+                const child = spawn(nodePath, args, { stdio: 'inherit' });
+
+                await new Promise((resolve, reject) => {
+                    child.on('error', (spawnError) => {
+                        console.error(`\n[main.js] Failed to start sendFilters.js: ${spawnError.message}`);
+                        reject(spawnError);
+                    });
+                    child.on('close', (code) => {
+                        console.log("-------------------------------------------------------------");
+                        if (code === 0) {
+                            console.log("Calibration transfer completed successfully!");
+                            console.log("-------------------------------------------------------------");
+                            resolve();
+                        } else {
+                            reject(new Error(`Filter transfer failed with exit code ${code}.`));
+                        }
+                    });
+                });
+            } catch (error) {
+                console.error(`\n[main.js] Error during calibration transfer step: ${error.message}`);
+            } finally {
+                await mainMenu();
+            }
             break;
         case 'exit':
             console.log('\nExiting application...');
@@ -905,9 +907,9 @@ async function mainMenu() {
     }
 }
 async function initializeApp() {
-    console.log('-------------------------');
-    console.log('  A1 Evo Acoustica v1.2  ');
-    console.log('-------------------------');
+    console.log('--------------------');
+    console.log('  A1 Evo Acoustica  ');
+    console.log('--------------------');
     mainServer = http.createServer((req, res) => {
         const url = req.url;
         const method = req.method;

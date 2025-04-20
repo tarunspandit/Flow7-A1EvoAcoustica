@@ -2224,7 +2224,7 @@ async function alignFronts() {
   console.infoBold("Final crossover and polarity settings:");
   for (let i = 1; i <= nSpeakers; i++) console.log(`${commandId[i]}: ${customCrossover[i]}Hz, polarity inverted? ${customInvert[i]}`);
   for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) console.log(`${commandId[i]}, polarity inverted? ${customInvert[i]}`);
-  if (customInvert.some(Boolean)) console.warn("Polarity inversions will be applied automatically by A1 Evo Neuron!");}
+  if (customInvert.some(Boolean)) console.warn("Polarity inversions will be applied automatically by A1 Evo Acoustica!");}
 async function fetchResponse(index, xoFreq, isSub = false, usePPO = false) {
   const base64ToFloat32ArrayBigEndian = (base64) => {
     const binaryStr = atob(base64);
