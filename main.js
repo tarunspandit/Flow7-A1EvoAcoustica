@@ -1005,10 +1005,14 @@ function findRewPath() {
         commonPaths.push(path.join(progFilesX86, 'REW', 'roomeqwizard.exe'));
     } else if (platform === 'darwin') {
         commonPaths.push('/Applications/REW.app/Contents/MacOS/roomeqwizard'); 
-        commonPaths.push('/Applications/REW.app'); 
+        commonPaths.push('/Applications/REW.app');
+        commonPaths.push('/Applications/REW/REW.app/Contents/MacOS/JavaApplicationStub');
+        commonPaths.push('/Applications/REW/REW.app');
         const home = os.homedir();
         commonPaths.push(path.join(home, 'Applications/REW.app/Contents/MacOS/roomeqwizard'));
         commonPaths.push(path.join(home, 'Applications/REW.app'));
+        commonPaths.push(path.join('Applications/REW/REW.app/Contents/MacOS/JavaApplicationStub'));
+        commonPaths.push(path.join(home, 'Applications/REW/REW.app'));
     } else { 
         console.warn("Automatic REW path detection on Linux is limited. Checking common PATH locations.");
         return 'roomeqwizard';
