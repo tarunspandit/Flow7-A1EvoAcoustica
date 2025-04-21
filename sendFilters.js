@@ -1142,6 +1142,26 @@ async function sendSetDatCommand(send, avrStatus, rawChSetup, filterData) {
         }
     }
 
+    // --- *** Check if SubwooferSetup needs separate command *** ---
+    let sendSubSetupSeparately = false;
+    let subSetupPayload = null;
+    if (avrStatus.SWSetup && typeof avrStatus.SWSetup === 'object' && avrStatus.SWSetup.SWNum !== undefined) {
+        const swNum = parseInt(avrStatus.SWSetup.SWNum, 10);
+        if (!isNaN(swNum) && swNum > 0) {
+            sendSubSetupSeparately = true;
+            subSetupPayload = { 
+                SubwooferSetup: {
+                    SWNum: swNum,
+                    SWMode: "Standard",
+                    SWLayout: "N/A"
+                }
+            };
+        } else {
+            console.warn("WARN: SWSetup present but SWNum invalid. Separate SubwooferSetup command will be skipped.");
+        }
+    }
+    // --- *** END SubwooferSetup Check *** --
+
     const basePayloadPart1 = {
         AmpAssign: sourceAmpAssign,
         AssignBin: sourceAssignBin,
@@ -1163,7 +1183,6 @@ async function sendSetDatCommand(send, avrStatus, rawChSetup, filterData) {
     let packet2Payload;
 
     const potentialCombinedJsonString = JSON.stringify(potentialCombinedPayload1);
-  
     const potentialCombinedBuffer = buildAvrPacket(COMMAND_NAME, potentialCombinedJsonString, 1, 1);
 
     if (potentialCombinedBuffer.length > BINARY_PACKET_THRESHOLD) {
@@ -1171,13 +1190,10 @@ async function sendSetDatCommand(send, avrStatus, rawChSetup, filterData) {
         requiresSplit = true;
 
         const packet1Json = JSON.stringify(basePayloadPart1);
-
         packet1Buffer = buildAvrPacket(COMMAND_NAME, packet1Json, 1, 2);
 
         packet2Payload = { ...payloadPart2Base };
-        if (chLevelArray.length > 0) {
-            packet2Payload.ChLevel = chLevelArray;
-        }
+        if (chLevelArray.length > 0) {packet2Payload.ChLevel = chLevelArray;}
 
     } else {
         //console.log(`---> Sending SET_SETDAT Part 1 combined: Packet size (${potentialCombinedBuffer.length} bytes) within threshold.`);
@@ -1200,6 +1216,15 @@ async function sendSetDatCommand(send, avrStatus, rawChSetup, filterData) {
     await delay(250);
 
     //console.log(`--- SET_SETDAT commands sent (Split: ${requiresSplit}) ---`);
+
+    if (sendSubSetupSeparately && subSetupPayload) {
+        const subSetupJsonString = JSON.stringify(subSetupPayload);
+        // Build as a *completely separate* command execution (Seq 1 of 1)
+        const subSetupPacketBuffer = buildAvrPacket(COMMAND_NAME, subSetupJsonString, 1, 1);
+        //console.log(`   Sending SET_SETDAT Packet 3 (SubwooferSetup) (${subSetupPacketBuffer.length} bytes)...`);
+        await send(subSetupPacketBuffer.toString('hex'), 'SET_SETDAT_P3_SubSetup', {addChecksum: false});
+        await delay(250); // Delay after the third packet too
+    }
 }
 async function processChannels(activeChannels, filterData, multEqType, hasGriffinLiteDSP, converterFunc, dataType, send) {
   for (const originalChannelId of activeChannels) {
