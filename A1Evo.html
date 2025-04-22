@@ -5,18 +5,21 @@ Copyright (c) 2025 OCA (https://www.youtube.com/@OCAudiophile)
 
 All rights reserved.
 
-This software is licensed under the following terms:
+This software is free to use and is licensed under the following terms:
 
 Permission is granted to:
+
 - Share: Copy and redistribute the material in its original, unmodified form, in any medium or format, provided this full license notice is included and no alterations are made to the content or functionality.
 
 Restrictions:
+
 - Attribution: You must provide appropriate credit to the original author (OCA), include a link to the official project or source (https://www.youtube.com/@OCAudiophile), and reproduce this license notice in full with every copy.
 - NonCommercial: You may not use the material for commercial purposes under any circumstances.
 - No Modifications: You may not modify, adapt, remix, transform, translate, convert to other languages, automate, integrate into other works, or otherwise alter the material in any way without explicit written permission from the author.
 - No Additional Use: Any use beyond exact duplication and sharing of the original, unmodified work—including but not limited to incorporation into other projects or systems—requires prior written consent from the author.
 
 Special Notice:
+
 - The algorithms, structure, and functionality contained in this script are proprietary and may not be used, reproduced, or adapted for any purpose—commercial or non-commercial—without explicit written permission from the author.
 - Any permitted modified versions must:
 • Be explicitly authorized in writing by the author prior to creation, use, or distribution.
@@ -25,6 +28,7 @@ Special Notice:
 • Attribute the original author and provide a link to the official project or source.
 
 Disclaimer:
+
 This software is provided "as is", without warranty of any kind, express or implied,
 including but not limited to the warranties of merchantability, fitness for a particular purpose,
 and noninfringement. Use at your own risk.
@@ -683,6 +687,7 @@ and noninfringement. Use at your own risk.
   <div id="logContainer">
   </div></div>
 </script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/14.0.1/math.min.js"></script><script>
+
 const evoVersion = "1.0";
 const baseUrl = 'http://localhost:4735/measurements', speedDelay = 255, maxDistanceLimit = 7.35;
 let micCalFile = new Array(16384).fill(0), audioCtx = null;
@@ -693,9 +698,9 @@ let folderPath, localAppPath = null, ocafileName, sOs = null, isCirrusLogic, isG
 let nSpeakers = null, nSubs = null, subMinTrim = -12, subMaxTrim = 12, lpf4LFE, filterCompensation, targetCurvePath, targetLevel, responseTarget, dataTarget, tcName, rewMaxLimit, isPreProcessed = false, isAutomated;
 let customLevel = [], commandId = [], customDistance = [], customInvert = [], customCrossover = [], customFilter = [], deqFilter = [], subLPF = [], subTrim = [], customMinFreq = [], customMaxFreq = [], customMargin = [];
 const defaultSlope = "L-R4";
-const dbValues = [-12, -15, -18, -20, -25];
+const dbValues = [-12, -15, -18, -20, -25]; //Equal loudness contours
 var subBoost = 0, bassFill = 0, levelLowVol = 2, enableInversion = false, minFreq = 40, maxFreq = 250, subRolloffEnabled = false, subRolloffFreq = null, subRolloffSlope = defaultSlope;
-////////////////////////////////////////////////////////////////////
+
 async function floatsToBase64(floatArray) {
     const nativeFloat32Data = (floatArray instanceof Float32Array) ? floatArray : new Float32Array(floatArray);
   if (nativeFloat32Data.length === 0) {
@@ -2202,13 +2207,20 @@ async function alignFronts() {
     await postNext('Offset t=0', nSpeakers + 1, { offset: bestOverallConfig.ts, unit: "seconds" });
     let minDist = Infinity;
     for (let i = 1; i <= nSpeakers + nSubs; i++) {
-      if (i > nSpeakers) { mSec[i] += bestOverallConfig.ts; customInvert[i] = !customInvert[i] === bestOverallConfig.subInverted; }
-      customDistance[i] = Math.round((distFL + (mSec[i] - mSec[1]) * sOs) * 100) / 100;
-      if (customDistance[i] < minDist) minDist = customDistance[i];
-      if (customDistance[i] > (minDist + maxDistanceLimit)) customDistance[i] = minDist + maxDistanceLimit;
+      if (i > nSpeakers) { mSec[i] += bestOverallConfig.ts;
+      customInvert[i] ^= bestOverallConfig.subInverted;
     }
-    if (minDist < 0) for (let i = 1; i <= nSpeakers + nSubs; i++) customDistance[i] -= minDist;
-    console.infoBold('Final speaker and subwoofer disatnces:');
+    customDistance[i] = Math.round((distFL + (mSec[i] - mSec[1]) * sOs) * 100) / 100;
+    if (customDistance[i] < minDist) minDist = customDistance[i];
+    if (customDistance[i] > (minDist + maxDistanceLimit)) customDistance[i] = minDist + maxDistanceLimit;
+    }
+    if (minDist < 0) {
+      for (let i = 1; i <= nSpeakers + nSubs; i++) {
+        customDistance[i] -= minDist;
+      }
+      minDist = 0;
+    }
+    console.infoBold('Final speaker and subwoofer distances:');
     let maxDist = minDist;
     for (let i = 1; i <= nSpeakers + nSubs; i++) {
       if (customDistance[i] > maxDist) maxDist = customDistance[i];
@@ -2278,8 +2290,8 @@ async function optimizeSpeakers(sp1, sp2 = null, targetData) {
   const dB2Amp = dB => Math.pow(10, dB / 20);
   const toRad = deg => deg * Math.PI / 180;
   const MIN_AMP_SQ = 1e-18, startF = 20, endF = 350;
-  const weightFreqs = [20, 25, 31.5, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500];
-  const weightValues = [0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 0.95, 0.9, 0.85, 0.8];
+  const weightFreqs = [20, 25, 31.5, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500]; 
+  const weightValues = [0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 0.95, 0.9, 0.85, 0.8];// ISO-226 2023 equal loudness weightings
   const weightSlopes = weightValues.map((v, i, a) => {
     if (i === 0) return (a[1] - v) / (weightFreqs[1] - weightFreqs[0]);
     if (i === a.length - 1) return (v - a[i - 1]) / (weightFreqs[i] - weightFreqs[i - 1]);
@@ -3056,7 +3068,6 @@ async function generateOCA() {
       let crossover = customCrossover[commandIdIndex];
       let speakerType = crossover === null ? "E" : (crossover < 40 ? "L" : "S");
       const channel = {
-      channelType: detectedChannel.enChannelType,
       speakerType: speakerType,
       distanceInMeters: distanceInMeters,
       trimAdjustmentInDbs: trimAdjustmentInDbs,

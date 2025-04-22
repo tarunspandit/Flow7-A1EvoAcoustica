@@ -25,43 +25,23 @@ function getBasePath() {
     return __dirname; // Development: project root
   }
 }
-const APP_BASE_PATH = getBasePath(); // Directory of the .exe file
+const APP_BASE_PATH = getBasePath();
 const CONFIG_FILENAME = 'receiver_config.avr';
-// Place config file next to the executable
 const CONFIG_FILEPATH = path.join(APP_BASE_PATH, CONFIG_FILENAME);
-// --- End external file path ---
-
-
 const HTML_FILENAME = 'A1Evo.html'; 
 let HTML_FILEPATH;
-
 if (process.pkg) {
-   
     HTML_FILEPATH = path.join(__dirname, HTML_FILENAME);
     console.log(`Platform: ${process.platform}`);
-    //console.log(`[PKG MODE] __dirname: ${__dirname}`);
-    //console.log(`[PKG MODE] Calculated HTML Path: ${HTML_FILEPATH}`);
-    // --- End Diagnostics ---
-
 } else {
-    // --- Development Mode ---
-    // HTML file is expected next to main.js
     HTML_FILEPATH = path.join(__dirname, HTML_FILENAME);
 }
-
-// --- Verification ---
-//console.log(`Attempting to access HTML file at: ${HTML_FILEPATH}`);
 if (!fs.existsSync(HTML_FILEPATH)) {
-    // If this still fails, something is very weird with the build/fs access.
-    console.error(`[!!! ERROR !!!] File system check failed for: ${HTML_FILEPATH}`);
+    console.error(`[ERROR] File system check failed for: ${HTML_FILEPATH}`);
     throw new Error(`Required file ${HTML_FILENAME} not found at ${HTML_FILEPATH}! Cannot start optimization.`);
 }
-
-// --- External Config File Handling ---
-console.log(`Base path for external files: ${APP_BASE_PATH}`); // Where the .exe is
+console.log(`Base path for external files: ${APP_BASE_PATH}`);
 console.log(`Attempting to load configuration from: ${CONFIG_FILEPATH}`);
-
-
 function runNodeScript(scriptPath, dataToSend = null) {
     return new Promise((resolve, reject) => {
         console.log(`\n--- Running ${path.basename(scriptPath)} ---`);
@@ -144,7 +124,7 @@ class UPNPDiscovery {
                                     });
                                 }
                             })
-                            .catch(err => console.error(`Error fetching description for ${locationUrl}: ${err.message}`));
+                        .catch(err => console.error(`Error fetching description for ${locationUrl}: ${err.message}`));
                     }
                 }
             });
@@ -776,12 +756,12 @@ async function mainMenu() {
     const choices = [
         { name: configOptionName, value: 'config' },
         {
-            name: `2. Start Optimization (opens A1 Evo in browser)${optimizeDisabled ? ' (Requires valid config)' : ''}`,
+            name: `2. Start Optimization (opens A1 Evo Acoustica in your browser)${optimizeDisabled ? ' (Requires valid configuration file)' : ''}`,
             value: 'optimize',
             disabled: optimizeDisabled
         },
         {
-            name: `3. Transfer Calibration (requires .oca file)${transferDisabled ? ' (Requires valid config)' : ''}`,
+            name: `3. Transfer Calibration (requires at least one '.oca' calibration file in this folder)${transferDisabled ? ' (Requires valid configuration file)' : ''}`,
             value: 'transfer',
             disabled: transferDisabled
         },
@@ -1005,6 +985,7 @@ function findRewPath() {
         commonPaths.push(path.join(progFilesX86, 'REW', 'roomeqwizard.exe'));
     } else if (platform === 'darwin') {
         commonPaths.push('/Applications/REW.app/Contents/MacOS/roomeqwizard'); 
+        commonPaths.push('/Applications/REW.app'); 
         commonPaths.push('/Applications/REW.app');
         commonPaths.push('/Applications/REW/REW.app/Contents/MacOS/JavaApplicationStub');
         commonPaths.push('/Applications/REW/REW.app');
@@ -1051,7 +1032,7 @@ function launchRew(rewPath, memoryArg = "-Xmx4096m") {
         let cmd = '';
         let args = [];
         const apiArg = '-api'; 
-        console.log(`Attempting to launch REW with API enabled from: ${rewPath}`);
+        console.log(`Attempting to launch REW with 4GB allocated RAM and API server enabled from: ${rewPath}`);
         try {
             if (platform === 'win32') {
                 cmd = `"${rewPath}"`; 
