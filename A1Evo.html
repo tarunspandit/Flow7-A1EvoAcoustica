@@ -625,7 +625,7 @@ and noninfringement. Use at your own risk.
   </div>
   <div class="crossover-slider">
   <div class="slider-label">
-  <span>Maximum crossover frequnecy</span>
+  <span>Maximum crossover frequency</span>
   <span id="maxFreqValue">250 Hz</span>
   </div>
   <div class="tooltip-container">
@@ -3329,7 +3329,7 @@ function readContents() {
     const modelsNo180xo = [ "-S720W", "-S920W", "X1300W", "X2300W", "X3300W", "NR1607", "SR5011", "SR6011", "X6500H", "-S730H", "-S740H", "-S930H", "-S940H",
                             "X1400H", "X1500H", "X2400H", "X2500H", "X3400H", "X3500H", "X4300H", "X4400H", "X4500H", "X6300H", "X6400H", "X6500H", "AV7703",
                             "AV7704", "AV7705", "NR1608", "NR1609", "SR5012", "SR5013", "SR6012", "SR6013", "SR7011", "SR7012", "SR7013", "SR8012" ];
-    const griffinLite = ["X8500H", "AV8805", "X6700H", "X4700H", "AV7706", "SR8015", "SR7015", " AV 10",  "VR-A1H", "VC-A1H", "X3800H", "X4800H", "EMA 30",  "EMA 40",  "EMA 50",  "X6800H", "R-A10H", "C-A10H"];
+    const griffinLite = ["X8500H", "AV8805", "X6700H", "X4700H", "AV7706", "SR8015", "SR7015", " AV 10", "VR-A1H", "VC-A1H", "X3800H", "X4800H", "EMA 30", "EMA 40", "EMA 50", "X6800H", "R-A10H", "C-A10H"];
     const baseFreq = [40, 60, 80, 90, 100, 110, 120, 150, 200, 250];
     const extraFreq = 180;
     const modelName = jsonContent.targetModelName;
@@ -3429,7 +3429,7 @@ function UpdateMaxFreq(maxFreqHz, syncSlider) {
     maxFreq = maxFreqHz;
     document.getElementById('maxFreqValue').textContent = maxFreqHz + ' Hz';
     if (syncSlider) {
-      const index = customMaxFreq.indexOf(maxFreqHz);
+      const index = customMaxFreq.findIndex(freq => Math.abs(freq - maxFreqHz) < 0.1);
       if (index !== -1) document.getElementById('maxFreqSlider').value = index; 
     }
   } else {
