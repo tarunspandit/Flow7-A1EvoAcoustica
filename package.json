@@ -6,6 +6,7 @@
   "bin": "main.js",
   "type": "commonjs",
   "scripts": {
+    "preinstall": "npx pkg-fetch --platform win --arch x64 --node-range node18",
     "start": "node main.js",
     "build-linux": "pkg . --targets node18-linux-x64 --output a1-evo-acoustica-linux",
     "build-macos-x64": "pkg . --targets node18-macos-x64 --output a1-evo-acoustica-macos-x64",
