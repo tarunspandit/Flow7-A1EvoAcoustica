@@ -957,7 +957,7 @@ function isProcessRunning(processName) {
             cmd = `tasklist /FI "IMAGENAME eq ${processName}" /NH`;
         } else if (platform === 'darwin') {
             const escapedName = processName.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\__STRING_304__');
-            cmd = `pgrep -fli "${escapedName}"`; 
+            cmd = `pgrep -fl "${escapedName}"`; 
         } else { 
             const escapedName = processName.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\__STRING_306__');
             cmd = `pgrep -fli "${escapedName}"`;
