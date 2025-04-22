@@ -1,83 +1,100 @@
-name: Build A1 Evo Acoustica Tool (All Platforms)
+name: Build A1 Evo Acoustica Tool (Linux & macOS) # Updated workflow name
 
 on:
-  workflow_dispatch: # Manual trigger
+  workflow_dispatch: # Allows manual triggering
   push:
-    branches: [ main, master ]
+    branches: [ main, master ] # Runs on pushes to these branches
   pull_request:
-    branches: [ main, master ]
+    branches: [ main, master ] # Runs on PRs targeting these branches
 
 jobs:
   build:
     strategy:
       fail-fast: false
       matrix:
-        os: [ ubuntu-latest, macos-latest, windows-latest ]
-
+        os: [ ubuntu-latest, macos-latest ]
     runs-on: ${{ matrix.os }}
-    name: Build on ${{ matrix.os }} (Node 20)
-
+    name: Build on ${{ matrix.os }} (Node 18)
     steps:
       - name: 🧾 Checkout code
         uses: actions/checkout@v4
+        
+      - name: 🧐 Verify Checkout Contents
+        run: |
+          echo "Listing files in current directory:"
+          ls -la
+          echo "Checking specifically for A1Evo.html:"
+          if [ -f "A1Evo.html" ]; then
+            echo "✅ A1Evo.html found!"
+          else
+            echo "❌ ERROR: A1Evo.html NOT FOUND after checkout!"
+            # Optionally fail the build here if needed: exit 1
+          fi
+        shell: bash
 
-      - name: 🟢 Set up Node.js v20
+      - name: 🟢 Set up Node.js v18
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '18'
           cache: 'npm'
 
       - name: 📦 Install Dependencies
         run: npm ci
 
       - name: 🛠️ Build Executables with pkg
+       
         run: npm run build
 
-      - name: 📦 Prepare Artifacts (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          mkdir -Force staging
-          if (Test-Path -Path ./a1-evo-acoustica-win.exe) {
-            Move-Item -Path ./a1-evo-acoustica-win.exe -Destination ./staging/
-            Write-Output "✅ Moved Windows EXE"
-          } else {
-            Write-Error "Windows executable not found!"
-            ls
-            exit 1
-          }
-        shell: pwsh
+      - name: 📜 List Files After Build
+        shell: bash
+        run: ls -l
 
-      - name: 📦 Prepare Artifacts (Unix)
-        if: runner.os != 'Windows'
+      - name: 📦 Prepare Artifacts
         shell: bash
         run: |
+          echo "Creating staging directory..."
           mkdir staging
-          OUTPUT_BASE="a1-evo-acoustica"
-          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
-            echo "Looking for Linux executable..."
-            if [ -f ./${OUTPUT_BASE}-linux ]; then mv ./${OUTPUT_BASE}-linux staging/${OUTPUT_BASE}-linux-x64
-            elif [ -f ./${OUTPUT_BASE}-linux-x64 ]; then mv ./${OUTPUT_BASE}-linux-x64 staging/
-            else
-              echo "::error::Linux executable not found!"
-              ls -l
-              exit 1
-            fi
-          elif [ "${{ matrix.os }}" = "macos-latest" ]; then
-            echo "Looking for macOS executables..."
-            if [ -f ./${OUTPUT_BASE}-macos-x64 ]; then mv ./${OUTPUT_BASE}-macos-x64 staging/
-            fi
-            if [ -f ./${OUTPUT_BASE}-macos-arm64 ]; then mv ./${OUTPUT_BASE}-macos-arm64 staging/
-            fi
-            if [ ! -f staging/${OUTPUT_BASE}-macos-x64 ] && [ ! -f staging/${OUTPUT_BASE}-macos-arm64 ]; then
-              echo "::error::No macOS executables found!"
-              ls -l
-              exit 1
-            fi
-          fi
-          echo "✅ Unix staging contents:"
-          ls -l staging
+          OUTPUT_BASE="a1-evo-acoustica" # Should match --output in package.json
+          TARGET_DIR="./staging"
+          EXE_FOUND=false # Flag
 
-      - name: 📤 Upload Artifact
+          echo "Moving executables for ${{ matrix.os }}..."
+
+          # --- REMOVED Windows block ---
+
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+             echo "Looking for Linux executable..."
+             if [ -f ./$OUTPUT_BASE ]; then mv ./$OUTPUT_BASE ${TARGET_DIR}/${OUTPUT_BASE}-linux-x64; EXE_FOUND=true; echo "Moved $OUTPUT_BASE";
+             elif [ -f ./${OUTPUT_BASE}-linux ]; then mv ./${OUTPUT_BASE}-linux ${TARGET_DIR}/${OUTPUT_BASE}-linux-x64; EXE_FOUND=true; echo "Moved ${OUTPUT_BASE}-linux";
+             elif [ -f ./${OUTPUT_BASE}-linux-x64 ]; then mv ./${OUTPUT_BASE}-linux-x64 ${TARGET_DIR}/; EXE_FOUND=true; echo "Moved ${OUTPUT_BASE}-linux-x64";
+             fi
+
+          elif [ "${{ matrix.os }}" = "macos-latest" ]; then
+             echo "Looking for macOS executables..."
+             # Note: pkg on macOS runner should create both arch files correctly if listed in targets
+             if [ -f ./${OUTPUT_BASE}-macos-x64 ]; then mv ./${OUTPUT_BASE}-macos-x64 ${TARGET_DIR}/; EXE_FOUND=true; echo "Moved ${OUTPUT_BASE}-macos-x64";
+             fi
+             if [ -f ./${OUTPUT_BASE}-macos-arm64 ]; then mv ./${OUTPUT_BASE}-macos-arm64 ${TARGET_DIR}/; EXE_FOUND=true; echo "Moved ${OUTPUT_BASE}-macos-arm64"; # EXE_FOUND intentionally overwritten if arm exists
+             fi
+             # Remove fallback - we expect specific arch files on macOS runner
+             # if [ "$EXE_FOUND" = false ] && [ -f ./${OUTPUT_BASE}-macos ]; then ...
+          else
+            echo "::error::Unexpected OS for artifact moving: ${{ matrix.os }}"
+            exit 1
+          fi
+
+         
+          if [ "$EXE_FOUND" = false ]; then
+            echo "::error::No executable found to move for ${{ matrix.os }} with base name ${OUTPUT_BASE}"
+            echo "Files present after build:"
+            ls -l ./
+            exit 1
+          else
+             echo "Staging directory contents:"
+             ls -l ${TARGET_DIR}
+          fi
+
+      - name: 📤 Upload Artifact (${{ matrix.os }})
         uses: actions/upload-artifact@v4
         with:
           name: a1-evo-acoustica-${{ matrix.os }}
