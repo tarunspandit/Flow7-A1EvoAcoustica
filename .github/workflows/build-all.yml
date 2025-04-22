@@ -36,16 +36,16 @@ jobs:
       - name: 📦 Prepare Artifacts (Windows)
         if: runner.os == 'Windows'
         run: |
-          mkdir staging
-          if exist a1-evo-acoustica-win.exe (
-            move a1-evo-acoustica-win.exe staging\\a1-evo-acoustica-win.exe
-            echo "✅ Moved Windows EXE"
-          ) else (
-            echo "::error::Windows executable not found!"
-            dir
-            exit /b 1
-          )
-        shell: cmd
+          mkdir -Force staging
+          if (Test-Path -Path ./a1-evo-acoustica-win.exe) {
+            Move-Item -Path ./a1-evo-acoustica-win.exe -Destination ./staging/
+            Write-Output "✅ Moved Windows EXE"
+          } else {
+            Write-Error "Windows executable not found!"
+            ls
+            exit 1
+          }
+        shell: pwsh
 
       - name: 📦 Prepare Artifacts (Unix)
         if: runner.os != 'Windows'
