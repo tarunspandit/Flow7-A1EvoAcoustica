@@ -985,7 +985,7 @@ function findRewPath() {
         commonPaths.push(path.join(progFilesX86, 'REW', 'roomeqwizard.exe'));
     } else if (platform === 'darwin') {
         commonPaths.push('/Applications/REW.app/Contents/MacOS/roomeqwizard'); 
-        commonPaths.push('/Applications/REW.app');
+        commonPaths.push('/Applications/REW.app'); 
         commonPaths.push('/Applications/REW/REW.app/Contents/MacOS/JavaApplicationStub');
         commonPaths.push('/Applications/REW/REW.app');
         const home = os.homedir();

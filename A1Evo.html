@@ -688,7 +688,7 @@ and noninfringement. Use at your own risk.
   </div></div>
 </script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/14.0.1/math.min.js"></script><script>
 
-const evoVersion = "1.0";
+const evoVersion = "2.9";
 const baseUrl = 'http://localhost:4735/measurements', speedDelay = 255, maxDistanceLimit = 7.35;
 let micCalFile = new Array(16384).fill(0), audioCtx = null;
 let jsonName = 'receiver_config.avr';
@@ -2130,6 +2130,8 @@ async function subHighpass(index, freq) {
 async function alignFronts() {
   const sp1 = 1, sp2 = 2, sw1 = nSpeakers + 1;
   console.info("Optimizing crossover, delay, and inversion for Front L/R + Sub...");
+  let maxSumPower = -Infinity;
+  let minSumPower = Infinity;
   await Promise.all([sp1, sp2, sw1].map(cleanFilters));
   const dB2Amp = dB => Math.pow(10, dB / 20);
   const toRad = deg => deg * Math.PI / 180;
@@ -2160,9 +2162,9 @@ async function alignFronts() {
     let speaker1_postXO, speaker2_postXO, sub_postXO;
     try {
       [speaker1_postXO, speaker2_postXO, sub_postXO] = await Promise.all([fetchResponse(sp1, freq, false, true), fetchResponse(sp2, freq, false, true), fetchResponse(sw1, freq, true, true)]);
-      if (!speaker1_postXO?.magnitude || !speaker2_postXO?.magnitude || !sub_postXO?.magnitude || speaker1_postXO.ppo <= 0 || speaker2_postXO.ppo <= 0 || sub_postXO.ppo <= 0) throw new Error("Incomplete POST-XO data.");
+      if (!speaker1_postXO?.magnitude || !speaker2_postXO?.magnitude || !sub_postXO?.magnitude || speaker1_postXO.ppo <= 0 || speaker2_postXO.ppo <= 0 || sub_postXO.ppo <= 0) throw new Error("Incomplete post XO data.");
     } catch (e) {
-      console.error(`Error fetching POST-XO responses for ${freq}Hz:`, e);
+      console.error(`Error fetching post XO responses for ${freq}Hz:`, e);
       continue;
     }
     let bestConfigForFreq = { sumPower: -Infinity };
@@ -2189,16 +2191,23 @@ async function alignFronts() {
           currentSumPower += power;
           validPoints++;
         }
-        if (validPoints && currentSumPower > bestConfigForFreq.sumPower) {bestConfigForFreq = { sumPower: currentSumPower, ts, subInverted: config.subInverted, validPoints };}
+        if (validPoints && currentSumPower > bestConfigForFreq.sumPower) {bestConfigForFreq = {sumPower: currentSumPower, ts, subInverted: config.subInverted, validPoints};}
       }
     }
     if (bestConfigForFreq.sumPower > -Infinity) {
       freqResults.push({freq, overallMagEstimate: 10 * Math.log10(bestConfigForFreq.sumPower / bestConfigForFreq.validPoints), config: bestConfigForFreq});
       if (bestConfigForFreq.sumPower > bestOverallSumPower) {
         bestOverallSumPower = bestConfigForFreq.sumPower;
-        bestOverallConfig = { freq, ts: bestConfigForFreq.ts, subInverted: bestConfigForFreq.subInverted };
+        bestOverallConfig = {freq, ts: bestConfigForFreq.ts, subInverted: bestConfigForFreq.subInverted};
       }
+      maxSumPower = Math.max(maxSumPower, bestConfigForFreq.sumPower);
+      minSumPower = Math.min(minSumPower, bestConfigForFreq.sumPower);
     }
+  }
+  for (const result of freqResults) {
+    const normalizedScore = (result.config.sumPower - minSumPower) / (maxSumPower - minSumPower);
+    result.scorePercent = normalizedScore * 100;
+    console.log(`Power score ${result.freq}Hz => ${result.scorePercent.toFixed(2)}%`);
   }
   if (bestOverallConfig) {
     console.infoBold(`Optimal front speakers configuration found => Xover: ${bestOverallConfig.freq}Hz, Subwoofer applied delay: ${(bestOverallConfig.ts * 1000).toFixed(4)}ms, Subwoofer inverted: ${bestOverallConfig.subInverted}`);
@@ -2208,7 +2217,7 @@ async function alignFronts() {
     let minDist = Infinity;
     for (let i = 1; i <= nSpeakers + nSubs; i++) {
       if (i > nSpeakers) { mSec[i] += bestOverallConfig.ts;
-      customInvert[i] ^= bestOverallConfig.subInverted;
+      customInvert[i] = !!(customInvert[i] ^ bestOverallConfig.subInverted);
     }
     customDistance[i] = Math.round((distFL + (mSec[i] - mSec[1]) * sOs) * 100) / 100;
     if (customDistance[i] < minDist) minDist = customDistance[i];
