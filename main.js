@@ -967,7 +967,7 @@ function isProcessRunning(processName) {
             cmd = `pgrep -fl "${escapedName}"`; 
         } else { 
             const escapedName = processName.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\__STRING_306__');
-            cmd = `pgrep -fli "${escapedName}"`;
+            cmd = `pgrep -fl "${escapedName}"`;
         }
         exec(cmd, (error, stdout, stderr) => {
             if (platform === 'win32') {
