@@ -688,7 +688,7 @@ and noninfringement. Use at your own risk.
   </div></div>
 </script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/14.0.1/math.min.js"></script><script>
 
-const evoVersion = "2.9";
+const evoVersion = "3.0";
 const baseUrl = 'http://localhost:4735/measurements', speedDelay = 255, maxDistanceLimit = 7.35;
 let micCalFile = new Array(16384).fill(0), audioCtx = null;
 let jsonName = 'receiver_config.avr';
@@ -1378,8 +1378,9 @@ async function main(){
   console.infoBold(`'A1 Evo Acoustica' completed optimization of your system in ${formatTime(totalTime)} on ${getCurrentDateTime()}.`);
   console.log(`Save generated calibration file '.oca' when prompted`);
   console.log(`Transfer optimized calibration (.oca file) to your receiver with option 3 in main menu`);
-  console.warn(`Optimal settings for loud / normal listening volume levels will be active in Audyssey 'Flat' mode`);
-  console.warn(`Audyssey 'Reference' mode can be used for low volume / late night listening.`);
+  console.log(`You can view the original and optimized (final) responses of your system's speakers and subwoofers, along with the applied filters (filter), in REW's 'All SPL' tab`)
+  console.warn(`Optimal settings for loud / normal listening volume levels will be active in 'Flat' mode`);
+  console.warn(`'Reference' mode can be used for low volume / late night listening.`);
   console.infoBold(`Enjoy your 'Evo'lved sound!`);
   console.infoBold(`OCA`);
   await updateAPI('blocking', false);
@@ -2083,7 +2084,7 @@ async function sortBass() {
   await generateRoll(lowPass, nSpeakers + 4, true);
   const lfeName = `LFE (${lowPass}Hz LPF)`;
   await fetchREW(nSpeakers + 5, 'PUT', {title: lfeName});
-  const sampleCount = xt32 ? 16055 : 511;
+  const sampleCount = xt32 ? 16055 : 512;
   const rightWindowWidth = sampleCount / (xt32 ? 48 : 6);
   await postSafe(`${baseUrl}/${nSpeakers + 3}/ir-windows`, {leftWindowType: "Rectangular", rightWindowType: "Rectangular", leftWindowWidthms: 0, rightWindowWidthms: rightWindowWidth, refTimems: 0, addFDW: false}, "Update processed");
   const response = await fetchSafe('impulse-response?windowed=true&samplerate=' + (xt32 ? '48000' : '6000'), nSpeakers + 3);
@@ -2389,7 +2390,7 @@ async function optimizeSpeakers(sp1, sp2 = null, targetData) {
   console.info(`  >> Assigned Crossover frequency: ${customCrossover[sp1]}Hz to ${isPair ? `${commandId[sp1]} and ${commandId[sp2]} (pair)` : commandId[sp1]}`);
   if (isPair) customCrossover[sp2] = customCrossover[sp1];}
 async function refResults(){
-  console.info(`Generating magnitude and phase correction filters for normal listening mode [Audyssey Flat]...`);
+  console.info(`Generating magnitude and phase correction filters for normal listening mode [Flat]...`);
   for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {if (customInvert[i]) {customFilter[i] = customFilter[0].map((value) => -value);} else {customFilter[i] = customFilter[0];}}
   for (let i = 1; i <= nSpeakers; i++) {
     console.info(`${commandId[i]}`);
@@ -2412,7 +2413,7 @@ async function refResults(){
   await postNext('Smooth', ind, {smoothing: "Var"});
   await new Promise((resolve) => setTimeout(resolve, speedDelay / 4));}
 async function refFilter(index, orgIndex) {
-  const sampleCount = xt32 ? 16321 : (xt ? 511 : 127);
+  const sampleCount = xt32 ? 16321 : (xt ? 512 : 128);
   const rightWindowWidth = sampleCount / (xt32 ? 48 : 6);
   await postNext('Smooth', index, {smoothing: "Var"});
   const mp = await postNext('Minimum phase version', index, {'include cal': true, 'append lf tail': false, 'append hf tail': false, 'frequency warping': false, 'replicate data': true});
@@ -2951,7 +2952,7 @@ async function fixSubs4REW() {
   for (let i = indicesToDelete.length - 1; i >= 0; i--) await postDelete(indicesToDelete[i]);
   console.info(`All subwoofer measurements corrected!`);}
 async function lowVolumeFilters() {
-  console.info('Generating new set of filters for low volume listening mode [Audyssey Reference]...');
+  console.info('Generating new set of filters for low volume listening mode [Reference]...');
   const spFilter = [];
   spFilter[0] = {
     "identifier": "speakerLovVolume",
@@ -3000,7 +3001,7 @@ async function lowVolumeFilters() {
   const deqSub = await postNext('Arithmetic', [nSpeakers + 3, filterIndice], {function: "A * B"});
   await new Promise((resolve) => setTimeout(resolve, speedDelay));
   const subKey = parseInt(Object.keys(deqSub.results)[0], 10);
-  let sampleCount = xt32 ? 16055 : 511;
+  let sampleCount = xt32 ? 16055 : 512;
   let rightWindowWidth = sampleCount / (xt32 ? 48 : 6);
   await postSafe(`${baseUrl}/${subKey}/ir-windows`, {leftWindowType: "Rectangular", rightWindowType: "Rectangular", leftWindowWidthms: 0, rightWindowWidthms: rightWindowWidth, refTimems: 0, addFDW: false}, "Update processed");
   const response = await fetchSafe('impulse-response?windowed=true&samplerate=' + (xt32 ? '48000' : '6000'), subKey);
@@ -3012,7 +3013,7 @@ async function lowVolumeFilters() {
   for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {if (customInvert[i]) {deqFilter[i] = deqFilter[0].map((value) => -value);} else {deqFilter[i] = deqFilter[0];}}
   await postDelete(subKey);
   let j = 1;
-  sampleCount = xt32 ? 16321 : (xt ? 511 : 127);
+  sampleCount = xt32 ? 16321 : (xt ? 512 : 128);
   rightWindowWidth = sampleCount / (xt32 ? 48 : 6);
   for (let i = nSpeakers + 6; i < filterIndice; i += 2) {
     const name = await fetchREW(i);
@@ -3347,10 +3348,10 @@ function readContents() {
         xt32 = false;
         xt = (jsonContent.enMultEQType == 1);
         console.log(`MultEQ Type :: ${jsonContent.enMultEQType === 1 ?
-          'XT (sub filterw: 511 FIR taps, speaker filterw: 511 FIR taps :: 6kHz)' :
-          'Basic (sub filter: 511 FIR taps, speaker filter: 128 FIR taps :: 6kHz)'}`);
+          'XT (sub filter: 512 active FIR taps, speaker filter: 512 active FIR taps :: 6kHz)' :
+          'Basic (sub filter: active 512 FIR taps, speaker filter: 128 active FIR taps :: 6kHz)'}`);
     } else {
-        console.log('MultEQ Type:: XT32 (subwoofer filters: 687 FIR taps, speaker filters: 1003 FIR taps :: 48kHz / multiRate)');
+        console.log('MultEQ Type:: XT32 (subwoofer filters: 687 active FIR taps out of 704 total, speaker filters: 1003 active FIR taps out of 1024 total :: 48kHz / multiRate)');
     }
     const model = modelName.slice(-6);
     isGriffin = griffinLite.includes(model);

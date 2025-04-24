@@ -19,10 +19,9 @@ let mainServer = null;
 
 function getBasePath() {
   if (process.pkg) {
-    // path.dirname(process.execPath) gives the directory of the .exe itself
     return path.dirname(process.execPath);
   } else {
-    return __dirname; // Development: project root
+    return __dirname;
   }
 }
 const APP_BASE_PATH = getBasePath();
@@ -347,7 +346,6 @@ async function getAvrInfoAndStatus(socket, commandTimeout = CONFIG.timeouts.comm
       let assignBin = null;
       let eqTypeString = "";
       if (infoJson?.EQType) eqTypeString = infoJson.EQType;
-      else if (infoJson?.Audyssey?.Version) eqTypeString = infoJson.Audyssey.Version; 
       if (statusJson?.ChSetup && Array.isArray(statusJson.ChSetup)) {
           rawChSetup = statusJson.ChSetup;
           activeChannels = statusJson.ChSetup
@@ -441,7 +439,7 @@ async function fetchModelFromGoform(ipAddress) {
         };
         const req = http.request(url, options, (res) => { 
             let data = '';
-            if (res.statusCode !== 200) {
+            if (res.statusCode < 200 || res.statusCode >= 300) {
                 console.warn(`Failed to get ${url}. Status: ${res.statusCode} ${res.statusMessage}`);
                 res.resume(); 
                 resolve(null); 
@@ -463,15 +461,15 @@ async function fetchModelFromGoform(ipAddress) {
                            finalName = friendlyName;
                            source = "FriendlyName tag";
                        } else {
-                           console.log(`ModelName ("${modelName}") was generic/missing, and FriendlyName ("${friendlyName}") was also unusable or absent.`);
+                           //console.log(`ModelName ("${modelName}") was generic/missing, and FriendlyName ("${friendlyName}") was also unusable or absent.`);
                            finalName = null; 
                            source = "None Found";
                        }
                     }
                     if (finalName) {
-                         console.log(`Model name identified as "${finalName}" via /goform/ (${source}).`);
+                         console.log(`Model name identified as "${finalName}" via (${source}).`);
                     } else {
-                         console.log("Could not identify a specific model name via /goform/.");
+                         console.log("Could not identify a specific model name!");
                     }
                     resolve(finalName); 
                 } catch (parseError) {
@@ -504,9 +502,18 @@ async function runFullDiscoveryAndSave(interactive = true) {
     try {
         const discovery = new UPNPDiscovery(CONFIG.timeouts.discovery);
         let devices = await discovery.discover();
-        //console.log(`Found ${devices.length} distinct device description(s).`);
+        console.log(`Found ${devices.length} distinct device description(s).`);
+        devices.forEach((dev, i) => {
+            console.log(`Device ${i+1}:`, {
+                address: dev.address,
+                usn: dev.usn,
+                manufacturer: dev.manufacturer,
+                modelName: dev.modelName,
+                friendlyName: dev.friendlyName
+            });
+        });
         const potentialAvrs = devices.filter(dev =>
-            (dev.usn && /Receiver/i.test(dev.usn)) || 
+            (dev.usn && /Receiver|AVR|Denon|Marantz/i.test(dev.usn)) || 
             /Denon|Marantz/i.test(dev.manufacturer || '') || 
             (/AVR|Receiver|SR|NR|AV|Cinema/i.test(dev.modelName || '') && !/MediaRenderer|MediaServer/i.test(dev.modelName || '')) || 
             (/AVR|Receiver|SR|NR|AV|Cinema/i.test(dev.friendlyName || '') && !/MediaRenderer|MediaServer/i.test(dev.friendlyName || '')) 
@@ -568,7 +575,7 @@ async function runFullDiscoveryAndSave(interactive = true) {
         console.log("\nUPnP discovery did not identify a target AVR IP, or selection was cancelled.");
         try {
             const ipAnswer = await inquirer.prompt([{
-                type: 'input', name: 'manualIp', message: 'Please enter the AVR IP address manually (or leave blank to cancel):',
+                type: 'input', name: 'manualIp', message: 'Please enter your AV Receiver IP address (###.###.#.###) manually (or leave blank to cancel):',
                 validate: input => {
                      if (input === '') return true; 
                      return (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(input)) ? true : 'Please enter a valid IPv4 address or leave blank.';
@@ -750,7 +757,7 @@ async function mainMenu() {
     }
     const configOptionName = configExists
         ? "1. Re-create and save AVR configuration file"
-        : "1. Discover AVR in the network and create and save configuration file";
+        : "1. Discover AVR in the network and create configuration file from its current settings";
     const optimizeDisabled = !configExists || !cachedAvrConfig?.ipAddress; 
     const transferDisabled = optimizeDisabled; 
     const choices = [
@@ -761,7 +768,7 @@ async function mainMenu() {
             disabled: optimizeDisabled
         },
         {
-            name: `3. Transfer Calibration (requires at least one '.oca' calibration file in this folder)${transferDisabled ? ' (Requires valid configuration file)' : ''}`,
+            name: `3. Transfer Optimized Calibration (Requires '.oca' calibration file)${transferDisabled ? ' (Requires valid configuration file)' : ''}`,
             value: 'transfer',
             disabled: transferDisabled
         },
@@ -887,9 +894,9 @@ async function mainMenu() {
     }
 }
 async function initializeApp() {
-    console.log('--------------------');
-    console.log('  A1 Evo Acoustica  ');
-    console.log('--------------------');
+    console.log('--------------------------------');
+    console.log('  A1 Evo Acoustica v3.0 by OCA');
+    console.log('--------------------------------');
     mainServer = http.createServer((req, res) => {
         const url = req.url;
         const method = req.method;
@@ -936,7 +943,7 @@ async function initializeApp() {
         }
     });
     mainServer.listen(SERVER_PORT, 'localhost', () => {
-        console.log(`Base path for files: ${APP_BASE_PATH}`);
+        //console.log(`Base path for files: ${APP_BASE_PATH}`);
         mainMenu(); 
     });
     mainServer.on('error', (err) => {
