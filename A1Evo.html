@@ -688,7 +688,7 @@ and noninfringement. Use at your own risk.
   </div></div>
 </script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/14.0.1/math.min.js"></script><script>
 
-const evoVersion = "3.0";
+const evoVersion = "3.1";
 const baseUrl = 'http://localhost:4735/measurements', speedDelay = 255, maxDistanceLimit = 7.35;
 let micCalFile = new Array(16384).fill(0), audioCtx = null;
 let jsonName = 'receiver_config.avr';
@@ -707,7 +707,6 @@ async function floatsToBase64(floatArray) {
     console.warn("Attempting to Base64 encode an empty array!");
     return "";
   }
-  //console.log(`Converting ${nativeFloat32Data.length} floats to Big-Endian bytes.`);
   const buffer = new ArrayBuffer(nativeFloat32Data.byteLength);
   const dataView = new DataView(buffer);
   for (let i = 0; i < nativeFloat32Data.length; i++) dataView.setFloat32(i * 4, nativeFloat32Data[i], false);
@@ -726,7 +725,6 @@ async function floatsToBase64(floatArray) {
           if (base64 === undefined) {
              reject(new Error("Could not extract Base64 string from FileReader result."));
           } else {
-             //console.log(`Generated Big-Endian Base64 length: ${base64.length}`);
              resolve(base64);
           }
         } catch (e) {
@@ -745,7 +743,6 @@ async function floatsToBase64(floatArray) {
   });}
 async function sendImpulseToRew(impulseData) {
   const rewEndpoint = 'http://localhost:4735/import/impulse-response-data';
-  //console.info(`Sending measurement "${impulseData.identifier}" to REW...`);
   try {
     const response = await fetch(rewEndpoint, {
       method: 'POST',
@@ -762,9 +759,7 @@ async function sendImpulseToRew(impulseData) {
        }
        throw new Error(errorMsg);
     }
-    //console.info(`REW responded with ${response.status} ${response.statusText} for "${impulseData.identifier}". Assuming accepted.`);
     const body = await response.json();
-    //console.log(`REW response body for "${impulseData.identifier}":`, body);
     return true;
   } catch (error) {
     console.error(`Failed to send data to REW for "${impulseData.identifier}".`, error);
@@ -860,7 +855,6 @@ async function extractMeasurements() {
               const impulsePayload = {identifier: measurementName, startTime: startTime, sampleRate: sampleRate, splOffset: splOffset, applyCal: false, data: base64Data};
               await sendImpulseToRew(impulsePayload);
               totalMeasurementsSent++;
-              //console.log(`--- Waiting ${REW_PROCESSING_DELAY_MS}ms for REW to process ${measurementName}... ---`);
               await delay(REW_PROCESSING_DELAY_MS);
             } catch (error) {
               console.error(`Error processing or sending ${measurementName}:`, error.message);
@@ -925,9 +919,9 @@ async function extractMeasurements() {
             const dataView = new DataView(bytes.buffer);
             const floats = new Float32Array(bytes.length / 4);
              for (let i = 0; i < floats.length; i++) {
-                 floats[i] = dataView.getFloat32(i * 4, true); // true for little-endian
+                 floats[i] = dataView.getFloat32(i * 4, true);
              }
-            let convolvedData = await fastConvolution(Array.from(floats), inv_micCal); // Convert Float32Array to regular array if needed by fastConvolution
+            let convolvedData = await fastConvolution(Array.from(floats), inv_micCal);
              if (convolvedData.length > responseLength) {
                  convolvedData = convolvedData.slice(0, responseLength);
              } else if (convolvedData.length < responseLength) {
@@ -1621,7 +1615,6 @@ async function ocAced() {
             const fileName = `Pre-processedMeasurements_${timestamp}.mdat`;
             const fullPath = `${localAppPath}/${fileName}`;
             await postSafe(`http://localhost:4735/measurements/command`, {command: 'Save all', parameters: [fullPath] }, 'Saved all measurements');
-            //alert(`Save command sent to REW for path: ${fullPath}\n\nCheck the application folder.`);
             console.log(`${fullPath} saved in the main application folder.`);
         } catch (error) {
              console.error("Error preparing or sending save command:", error);
@@ -1790,12 +1783,7 @@ async function getSpatial(indices, name) {
     await postSafe(`${baseUrl}/${indices[0]}/command`, {command: 'Response copy'}, 'Completed');
     const allResponses = await fetchREW();
     const nTotal = Object.keys(allResponses).length;
-    //await fetchREW(nTotal, 'PUT', {title: name + "o"});
-
     await putSafe(`${baseUrl}/${nTotal}`, {title: name + "o"},'Update processed');
-
-
-
     return
   }
   if (name.startsWith("SW")) {
@@ -1803,11 +1791,7 @@ async function getSpatial(indices, name) {
     await new Promise((resolve) => setTimeout(resolve, speedDelay * 2));
     const vectorKey = Object.keys(vectorAverage.results)[0];
     const key = parseInt(vectorKey, 10);
-    //await fetchREW(key, 'PUT', {title: name + "o"});
-    
     await putSafe(`${baseUrl}/${key}`, {title: name + "o"},'Update processed');
-
-
     console.info(`Total measurements averaged to optimize speaker ${name} steady state response: ${indices.length}`);
     return;
   };
@@ -1926,7 +1910,6 @@ async function checkPolarity() {
     const needsInversion = correlationResults.every(result => result.needsInversion);
     if (needsInversion) {
       console.warn(`⚠ Speaker ${commandId[i]} seems to be out of phase! A1 Evo will automatically INVERT it! DO NOT swap speaker cables!`);
-      //console.log(`  Results: ${correlationResults.map(r => `${r.frequency}Hz: normal=${r.normalCorr.toFixed(3)}, inv=${r.invCorr.toFixed(3)}`).join(', ')}`);
       customInvert[i] = true;
       invertedCount++;
       await postSafe(`${baseUrl}/${i}/command`, {command: "Invert"}, "Invert completed");
@@ -2662,7 +2645,6 @@ async function optimizeSubs(i1, i2, timeShiftMinMs, timeShiftMaxMs, fMax) {
   const dB2Amp = dB => Math.pow(10, dB / 20);
   const toRadians = deg => deg * Math.PI / 180;
   const twoPi = 2 * Math.PI;
-  //const log2 = 20 * Math.log10(2);
   const [sub1, sub2] = await Promise.all([fetchSub(i1), fetchSub(i2)]);
   const {startFreq, freqStep, magnitude: mag1, phase: ph1} = sub1;
   const {magnitude: mag2, phase: ph2} = sub2;
@@ -2711,7 +2693,6 @@ async function optimizeSubs(i1, i2, timeShiftMinMs, timeShiftMaxMs, fMax) {
     if (bestForInversion.sumPower > bestConfig.sumPower) bestConfig = bestForInversion;
   }
   const avgPower = bestConfig.sumPower / nIndices;
-  //const overallMag = 10 * Math.log10(avgPower) - log2;
   const overallMag = 20 * Math.log10(avgPower);
   console.infoUpdate(`Analysing permutation: Required time delay: ${(bestConfig.timeShift * 1000).toFixed(3)} ms, inversion required: ${bestConfig.sub2Inverted}, estimated sound pressure: ${overallMag.toFixed(2)} dB`);
   const bestDelay = -bestConfig.timeShift * 1000;
