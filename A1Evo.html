@@ -1398,7 +1398,7 @@ async function checkREW() {
         const major = parseInt(versionMatch[1], 10);
         const minor = parseInt(versionMatch[2], 10);
         const beta = parseInt(versionMatch[3], 10);
-        const versionOK = major > 5 || (major === 5 && minor > 40) || (major === 5 && minor === 40 && beta >= 76);
+        const versionOK = major > 5 || (major === 5 && minor > 40) || (major === 5 && minor === 40 && beta >= 78);
         if (!versionOK) {
           console.error(`Installed REW version (${versionString}) is outdated and incompatible with A1 Evo! Please install the latest REW Beta from https://www.avnirvana.com/threads/rew-api-beta-releases.12981/.`);
           throwError();
@@ -1414,9 +1414,12 @@ async function checkREW() {
       rewMaxLimit = await fetchSafe('max-measurements');
       const limitExceeded = rewMaxLimit < 200;
       const tcResponse = await fetch('http://localhost:4735/eq/house-curve');
-      const target = tcResponse.ok ? await tcResponse.json() : null;
-      targetCurvePath = target?.message;
-      const missingTargetCurve = !target || !targetCurvePath;
+      if (tcResponse.ok) {
+        targetCurvePath = await tcResponse.text();
+      } else {
+        targetCurvePath = null;
+      }
+      const missingTargetCurve = !targetCurvePath;
       if (emptyMeasurements || limitExceeded || missingTargetCurve) {
         if (emptyMeasurements) {
           console.warn(`⚠ No measurements in REW. Please load measurements. Retrying in ${reTry} seconds...`);
@@ -3583,13 +3586,34 @@ async function postNext(processName, indices, parameters = null, maxRetries = 3)
   }}
 async function postSafe(requestUrl, parameters, message) {
   async function fetchData() {
+    // Don't JSON.stringify if parameters is already a string
+    const body = typeof parameters === 'string' 
+      ? parameters 
+      : JSON.stringify(parameters);
+      
+    const headers = typeof parameters === 'string'
+      ? { 'Content-Type': 'text/plain' }
+      : { 'Content-Type': 'application/json' };
+      
     const response = await fetch(requestUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(parameters),
+      headers,
+      body,
     });
+    
     if (!response.ok) throw new Error('Network response was not OK!');
-    return await response.json();}
+    const text = await response.text();
+    
+    // Try to parse as JSON if possible
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      // If not JSON, return as an object with text property
+      return { message: text };
+    }
+  }
+
+  // Rest of function remains the same
   let data = await fetchData();
   while (true) {
     if (data.message.includes(message)) {
@@ -3599,7 +3623,9 @@ async function postSafe(requestUrl, parameters, message) {
       data = await fetchData();
     } else {
       throw new Error(`Unexpected response: ${data.message}`);
-    }}}
+    }
+  }
+}
 async function postAlign(processName, frequency = null) {
   try {
     const response = await fetch('http://localhost:4735/alignment-tool/command', {

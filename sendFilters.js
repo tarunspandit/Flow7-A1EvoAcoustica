@@ -6,16 +6,17 @@ const http = require('http');
 const {URL} = require('url');
 const readline = require('readline');
 const CONFIG = {
-  files: { filters: 'filter.oca' },
-  target: { ip: null, port: 1256 },
-  targetCurves: ['00', '01'],
+  files: {filters: 'filter.oca'},
+  target: {ip: null, port: 1256},
+  targetCurves: ['01', '00'],
   sampleRates: ['00', '01', '02'],
   timeouts: {
     connect: 5000,
-    command: 15000,
-    finalize: 30000,
-    enterCalibration: 2000,
-    nonAckPacket: 150
+    command: 5000,
+    finalize: 5000,
+    enterCalibration: 3000,
+    nonAckPacket: 50,
+    power: 12500
   }
 };
 const CMD_SET_COEFDT_HEX = '5345545f434f45464454'; 
@@ -232,7 +233,7 @@ async function sendTelnetCommands(ip, port = 23, lpf4LFE = 120) {
             console.log(`Preset successfully changed to ${selectedPreset}`);
           }
         });
-      }, 15000);
+      }, CONFIG.timeouts.power);
     });
     client.on('error', (err) => {
       rl.close();
@@ -733,7 +734,7 @@ async function getAvrInfoAndStatus(socket) {
       let buffer = Buffer.alloc(0);
       const packet = Buffer.from(hexWithChecksum, 'hex');
       let timer;
-      const cleanup = () => { socket.off('data', onData); socket.off('error', onError); clearTimeout(timer); };
+      const cleanup = () => {socket.off('data', onData); socket.off('error', onError); clearTimeout(timer);};
       const onData = data => {
         buffer = Buffer.concat([buffer, data]);
         const utf8 = buffer.toString('utf8');
@@ -782,6 +783,42 @@ async function getAvrInfoAndStatus(socket) {
     avrStatus: statusJson,
     rawChSetup
   };
+}
+async function getAvrInfoAndStatus1(socket) {
+  const sendRawAndParseJson = (hexWithChecksum, label) =>
+    new Promise((resolve, reject) => {
+      let buffer = Buffer.alloc(0);
+      const packet = Buffer.from(hexWithChecksum, 'hex');
+      let timer;
+      const cleanup = () => {socket.off('data', onData); socket.off('error', onError); clearTimeout(timer);};
+      const onData = data => {
+        buffer = Buffer.concat([buffer, data]);
+        const utf8 = buffer.toString('utf8');
+        const jsonStart = utf8.indexOf('{');
+        const jsonEnd = utf8.lastIndexOf('}');
+        if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+          try {
+            const potentialJson = utf8.slice(jsonStart, jsonEnd + 1);
+            const parsed = JSON.parse(potentialJson);
+            cleanup();
+            resolve(parsed);
+          } catch (err) {
+          }
+        } else if (buffer.length > 8192) {
+          cleanup();
+          reject(new Error(`${label} response buffer overflow`));
+        }
+      };
+      const onError = err => { cleanup(); reject(new Error(`Socket error during ${label}: ${err.message}`)); };
+      timer = setTimeout(() => { cleanup(); reject(new Error(`${label} timed out waiting for JSON response.`)); }, CONFIG.timeouts.command);
+      socket.on('data', onData);
+      socket.on('error', onError);
+      socket.write(packet, err => {
+        if (err) { cleanup(); reject(new Error(`Write error during ${label}: ${err.message}`)); }
+        else { console.log('...'); }
+      });
+    });
+  await sendRawAndParseJson('54001300004745545f415652494e460000006c', 'GET_AVRINF');
 }
 function generatePackets(coeffsHex, channelConfig, tc, sr, channelByte) {
   const packets = [];
@@ -844,9 +881,7 @@ function generatePackets(coeffsHex, channelConfig, tc, sr, channelByte) {
   let send = null;
   let audEnteredGlobal = false; 
   try {
-    if (process.argv.length < 4) {
-        throw new Error("Missing required arguments!");
-    }
+    if (process.argv.length < 4) throw new Error("Missing required arguments!");
     const targetIp = process.argv[2];
     const basePathForOcaSearch = process.argv[3];
     console.log(`Targeting AVR @ IP address: ${targetIp}`);
@@ -864,19 +899,26 @@ function generatePackets(coeffsHex, channelConfig, tc, sr, channelByte) {
       case 0: multEqType = "MultEQ"; break;
       case 1: multEqType = "XT"; break;
       case 2: multEqType = "XT32"; break;
-      default: throw new Error(`Unsupported eqType in filter file: ${filterData.eqType}`);
+      default: throw new Error(`Unknown eqType in .oca calibration file: ${filterData.eqType}`);
     }
     if (!filterData?.channels?.length) {throw new Error(`Invalid format in ${CONFIG.files.filters}. Expected 'channels' array.`);}
+
     console.log(`Connecting to AV receiver at IP address: ${CONFIG.target.ip}`);
     await new Promise(resolve => setTimeout(resolve, 5000));
     await sendTelnetCommands(CONFIG.target.ip, 23, filterData.lpfForLFE);
+    await delay(1000);
+
     client = await connectToAVR(CONFIG.target.ip, CONFIG.target.port, CONFIG.timeouts.connect);
     console.log("Connection secured.");
     const send = createCommandSender(client);
-    await send('5400130000455849545f4155444d440000006b','PREEMPTIVE_EXIT_AUDMD', {timeout: CONFIG.timeouts.enterCalibration, expectAck: true, addChecksum: false});
-    await delay(500)
+
+    //pre-emptive strike
+    await getAvrInfoAndStatus1(client);
+    await send('5400130000455849545f4155444d44000000','PREEMPTIVE_EXIT_AUDMD', {timeout: CONFIG.timeouts.enterCalibration, expectAck: true, addChecksum: true});
+
     console.log("Getting AVR information and status...");
     const {activeChannels, dataType, coefWaitTime, avrStatus, rawChSetup} = await getAvrInfoAndStatus(client);
+
     console.log("Comparing .oca file channel assignments with the configuration reported by the AVR...");
     if (!filterData || !filterData.channels || !Array.isArray(filterData.channels)) {throw new Error(`Invalid or missing 'channels' array in ${CONFIG.files.filters}.`);}
     if (!activeChannels || !Array.isArray(activeChannels)) {throw new Error(`Could not retrieve valid active channel list from AVR.`);}
@@ -891,6 +933,7 @@ function generatePackets(coeffsHex, channelConfig, tc, sr, channelByte) {
        missingOnAvr.push(originalOcaName || ocaChannel);
      }
     }
+
     if (missingOnAvr.length > 0) {
      console.error(`\n--- Configuration Mismatch ---`);
      console.error(`The following channels expected by '${CONFIG.files.filters}' are NOT active/configured on the AVR:`);
@@ -911,7 +954,8 @@ function generatePackets(coeffsHex, channelConfig, tc, sr, channelByte) {
              console.log(">> Configurations match between loaded .oca file and what the AVR reported."); 
         }
     } else {
-         console.log("   Skipping amplifier assignment map comparison ('AssignBin' not found in .oca file).");
+         console.log("   Amplifier assignment map 'AssignBin' not found in .oca file!");
+         throw err;
     }
     const missingInOca = [];
     for (const avrChannel of normalizedAvrChannelNames) {
@@ -921,57 +965,48 @@ function generatePackets(coeffsHex, channelConfig, tc, sr, channelByte) {
      }
     }
     if (missingInOca.length > 0) console.warn(`\n⚠️ Warning: The AVR reports active channels that are NOT present in '${CONFIG.files.filters}': [${missingInOca.join(', ')}]. Settings for these channels will NOT be updated.\n`);
-    const converterFunc = dataType?.toLowerCase() === 'float' ? floatToHex : floatToFixed32HexLE;
-    const enterAudCommandHex = '5400130000454e5445525f41554459000000';
-    let audEntered = false;
-    while (!audEntered) {
-      try {
-        const ackPromise = new Promise((resolve, reject) => {
-          const onData = (data) => {
-            const response = data.toString('utf8');
-            if (response.includes('ACK')) {
-              audEntered = true;
-              audEnteredGlobal = true;
-              client.removeListener('data', onData);
-              resolve();
-            } else if (response.includes('INPROGRESS')) {
-            }
-          };
-          client.on('data', onData);
-          setTimeout(() => {
-            client.removeListener('data', onData);
-            reject(new Error('ACK timeout'));
-          }, 3000);
-        });
-        await send(enterAudCommandHex, 'ENTER_AUDY', { timeout: 3000, expectAck: false });
-        await ackPromise;
-      } catch (e) {
-        if (!audEntered) {
-          console.log('Retrying to set the AVR in correct mode...');
-          await delay(1000);
-        }
-      }
+    
+    const enterAudyCommandHexWithChecksum = '5400130000454e5445525f41554459000000';
+    audEnteredGlobal = false; // Reset flag
+
+    console.log("Attempting to enter Calibration mode (single attempt)...");
+    try {
+      // Use the standard send function, expect ACK, reasonable timeout
+      await send(enterAudyCommandHexWithChecksum,'ENTER_AUDY', {timeout: 3000, expectAck: true, addChecksum: true});
+
+      // If send() resolves, ACK was received
+      console.log("   Calibration mode entered successfully.");
+      audEnteredGlobal = true; // Set global flag
+
+    } catch (e) {
+      // If send() rejected (Timeout, NACK, ERROR, Connection)
+      console.error(`   FAILED to enter calibration mode: ${e.message}`);
+      // Re-throw the error to halt the script via the main catch block
+      throw new Error(`Failed to enter calibration mode. Reason: ${e.message}`);
     }
     console.log('AVR ready to accept filters.');
+
     await sendSetDatCommand(send, avrStatus, rawChSetup, filterData);
-    if (dataType?.toLowerCase() === 'fixeda') {
-      const initDelay = coefWaitTime?.Init ?? 250;
-      await delay(initDelay);
-      await send('5400130000494e49545f434f454653000000', 'INIT_COEFS', {timeout: CONFIG.timeouts.finalize});
-      const betweenInitDelay = 2000;
-      //console.log(`   Applying delay between INIT_COEFS: ${betweenInitDelay}ms...`);
-      await delay(betweenInitDelay);
-      await send('5400130000494e49545f434f454653000000', 'INIT_COEFS', {timeout: CONFIG.timeouts.finalize});
-      const postInitDelay = coefWaitTime?.Final ?? 250;
-      await delay(postInitDelay);
+    
+     if (dataType?.toLowerCase().startsWith('fixed')) {
+      console.log(`${dataType} data type detected!`);
+      await delay(coefWaitTime.Init);
+      await send('5400130000494e49545f434f454653000000', 'INIT_COEFS', {timeout: 10000, expectAck: true, addChecksum: true});
+      await delay(coefWaitTime.Init);
+      
     }
-    if (!activeChannels.length) {
-      console.warn("No active channels reported by AVR. Skipping coefficient sending.");
+
+    if (!activeChannels || activeChannels.length === 0) {
+      console.error("No active channels reported by AVR!");
+      throw err;
     } else {
-      await processChannels(activeChannels, filterData, multEqType, filterData.hasGriffinLiteDSP, converterFunc, dataType, send);
+        const converterFunc = dataType?.toLowerCase() === 'float' ? floatToHex : floatToFixed32HexLE;
+        await processChannels(activeChannels, filterData, multEqType, filterData.hasGriffinLiteDSP, converterFunc, dataType, send);
+        //console.log("Coefficient data transfer complete.");
     }
-    console.log("Finalizing filter transfer...");
-    await finalizeTransfer(dataType, send);
+
+    await finalizeTransfer(dataType, send, coefWaitTime);
+
     console.log("\nCalibration transfer completed successfully!");
     console.log(`Your receiver is now ready to be used with A1 Evo optimal settings.`);
     console.log(`\n'Reference' and 'Flat' modes are loaded with different sets of 'A1 Evo' filters.`);
@@ -984,47 +1019,48 @@ function generatePackets(coeffsHex, channelConfig, tc, sr, channelByte) {
     if (audEnteredGlobal && client && send && !client.destroyed) {
       console.warn("Attempting to exit calibration mode due to error...");
       try {
-        await send('5400130000455849545f4155444d440000006b', 'EXIT_AUDMD_ON_ERROR', {
-            expectAck: true,
-            addChecksum: false,
-            timeout: 5000
-        });
+        await send('5400130000455849545f4155444d44000000', 'EXIT_AUDMD_ON_ERROR', {expectAck: true, addChecksum: true, timeout: 3000});
         console.warn("Calibration mode exited with success!");
-        await delay(250);
       } catch (exitErr) {
           console.error(`Failed to exit calibration mode during error cleanup: ${exitErr.message}. You may need to power-cycle your AVR!`);
       }
     } else {
-       let reason = "";
-       if (!audEnteredGlobal) reason = "Calibration mode not successfully entered.";
-       else if (!client || !send) reason = "Connection/sender not available.";
-       else if (client.destroyed) reason = "Connection already closed.";
-       console.warn(`Cannot attempt to exit calibration mode during error cleanup. Reason: ${reason}`);
+        let reason = "";
+        if (!audEnteredGlobal) reason = "Calibration mode not successfully entered.";
+        else if (!client) reason = "Client connection not established.";
+        else if (client.destroyed) reason = "Client connection already destroyed.";
+        else if (!send) reason = "Send function not available.";
+        console.warn(`\nCannot attempt to exit calibration mode during error cleanup. Reason: ${reason}`);
     }
+
+    process.exitCode = 1;
+
   } finally {
-    if (client && !client.destroyed) { 
-      console.log("Closing AVR connection...");
+    if (client && !client.destroyed) {
+      console.log("\nClosing AVR connection...");
       try {
         client.end(() => {
+            // console.log("   Connection ended gracefully."); // Optional log
         });
          setTimeout(() => {
            if (client && !client.destroyed) {
-              console.warn("Connection did not close gracefully, forcing destroy.");
+              console.warn("   Connection did not close gracefully, forcing destroy.");
               client.destroy();
            }
-         }, 1000); 
+         }, 1500);
       } catch (closeErr) {
-        console.error("Error closing connection:", closeErr.message);
-         if (client && !client.destroyed) {
-            console.warn("Forcing connection destroy after close error.");
+          console.error("   Error during connection closing:", closeErr.message);
+          if (client && !client.destroyed) {
+            console.warn("   Forcing connection destroy after close error.");
             client.destroy();
          }
       }
     } else {
-        // console.log("Client already closed or not initialized.");
+        console.log("\nConnection already closed or was not established.");
     }
-  } 
-})(); 
+    //console.log("Script finished.");
+  }
+})();
 async function findNetworkDevices() {
   console.log(`Searching for a Denon/Marantz AV receiver in your network...`);
   const discovery = new UPNPDiscovery();
@@ -1226,9 +1262,9 @@ async function sendSetDatCommand(send, avrStatus, rawChSetup, filterData) {
         expectAck: true,
         timeout: CONFIG.timeouts.command
     });
-    if (i < totalPackets - 1) await delay(50);
+    //if (i < totalPackets - 1) await delay(50);
   }
-  await delay(50);
+  //await delay(50);
 }
 async function processChannels(activeChannels, filterData, multEqType, hasGriffinLiteDSP, converterFunc, dataType, send) {
   for (const originalChannelId of activeChannels) {
@@ -1246,11 +1282,11 @@ async function processChannels(activeChannels, filterData, multEqType, hasGriffi
     for (const tc of CONFIG.targetCurves) {
       await sendTargetCurve(tc, processedData, originalChannelId, multEqType, filterData.hasGriffinLiteDSP, converterFunc, dataType, send);
       if (tc !== CONFIG.targetCurves[CONFIG.targetCurves.length - 1]) {
-         await delay(150);
+         //await delay(150);
       }
     }
     //console.log(`--- Channel processed: ${originalChannelId}`);
-    await delay(150);
+    //await delay(150);
   }
 }
 function processFilterData(channelFilterData, multEqType, lookupChannelId) {
@@ -1285,9 +1321,8 @@ function processFilterData(channelFilterData, multEqType, lookupChannelId) {
 async function sendTargetCurve(tc, processedData, originalChannelId, multEqType, hasGriffinLiteDSP, converterFunc, dataType, send) {
   //console.log(`   Sending Target Curve ${tc} for ${originalChannelId}...`);
   let coeffs, curveName;
-  if (tc === '01') { coeffs = processedData.filter; curveName = 'Reference (TC01)'; }
-  else if (tc === '00') { coeffs = processedData.filterLV; curveName = 'Flat (TC00)'; }
-  else {console.warn(`   Unsupported target curve '${tc}'. Skipping.`); return;}
+  if (tc === '01') {coeffs = processedData.filter; curveName = 'Reference (TC01)';}
+  else if (tc === '00') {coeffs = processedData.filterLV; curveName = 'Flat (TC00)';}
 
   if (!coeffs?.length) {
     console.warn(`   Skipping ${curveName} for ${originalChannelId} due to zero or invalid floats.`);
@@ -1330,21 +1365,13 @@ async function sendTargetCurve(tc, processedData, originalChannelId, multEqType,
         
         // console.log(`DEBUG: ${packetLabel} ACK received.`);
 
-        if (i < packets.length - 1) {
-          await delay(30);
-        }
-
       } catch (err) {
         console.error(`!!! FAILED sending ${packetLabel}: ${err.message}`);
         //console.error(`    Halting transfer for ${originalChannelId} ${curveName} SR${sr}.`);
         throw err;
       }
     } 
-
     //console.log(`      SR ${sr} block completed successfully.`);
-    if (sr !== CONFIG.sampleRates[CONFIG.sampleRates.length - 1]) {
-      await delay(100); // Delay between SR blocks (e.g., 100ms)
-    }
   }
 
   if (tc === "00") {
@@ -1353,13 +1380,23 @@ async function sendTargetCurve(tc, processedData, originalChannelId, multEqType,
     console.log(`   Reference mode filters for channel ${originalChannelId} were sent successfully.`);
   }
 }
-async function finalizeTransfer(dataType, send) {
-  await send('540013000046494e5a5f434f454653000000', 'FINZ', {timeout: CONFIG.timeouts.finalize});
-  const finalFlagPayload = {"AudyFinFlg": "Fin"};
+async function finalizeTransfer(dataType, send, coefWaitTime) {
+  console.log("Finalizing filter transfer...");
+  
+  //console.log("Sending FINZ_COEFS command...");
+  await send('540013000046494e5a5f434f454653000000', 'FINZ_COEFS', {timeout: 15000, expectAck: true, addChecksum: true});
+  //console.log("FINZ_COEFS sent and acknowledged.");
+  await delay(50);
+  //console.log("Setting finalization Flag...");
+  const finalFlagPayload = { "AudyFinFlg": "Fin" };
   const finalFlagJsonString = JSON.stringify(finalFlagPayload);
   const finalFlagPacketBuffer = buildAvrPacket('SET_SETDAT', finalFlagJsonString, 0, 0);
-  await send(finalFlagPacketBuffer.toString('hex'), 'SET_AUDYFINFLG', {addChecksum: false});
-  await send('5400130000455849545f4155444d44000000', 'EXIT_AUDMD');
+  await send(finalFlagPacketBuffer.toString('hex'), 'SET_AUDYFINFLG_FIN', {addChecksum: false, expectAck: true, timeout: CONFIG.timeouts.command});
+  //console.log("Finalization flag set.");
+  await delay(50);
+  console.log("Exiting Calibration Mode...");
+  await send('5400130000455849545f4155444d440000006b', 'EXIT_AUDMD', {timeout: CONFIG.timeouts.command, expectAck: true, addChecksum: false});
+  //console.log("Exited Calibration Mode.");
 }
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
