@@ -1,4 +1,4 @@
-name: Build A1 Evo Acoustica Tool (Linux & macOS) # Updated workflow name
+name: Build A1 Evo Acoustica Tool # Updated workflow name
 
 on:
   workflow_dispatch: # Allows manual triggering
@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ ubuntu-latest, macos-latest ]
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
     runs-on: ${{ matrix.os }}
     name: Build on ${{ matrix.os }} (Node 18)
     steps:
@@ -60,7 +60,12 @@ jobs:
 
           echo "Moving executables for ${{ matrix.os }}..."
 
-          # --- REMOVED Windows block ---
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+             echo "Looking for Windows executable..."
+             if [ -f ./${OUTPUT_BASE}-win.exe ]; then mv ./${OUTPUT_BASE}-win.exe ${TARGET_DIR}/; EXE_FOUND=true; echo "Moved ${OUTPUT_BASE}-win.exe";
+             elif [ -f ./${OUTPUT_BASE}-win-x64.exe ]; then mv ./${OUTPUT_BASE}-win-x64.exe ${TARGET_DIR}/${OUTPUT_BASE}-win.exe; EXE_FOUND=true; echo "Moved ${OUTPUT_BASE}-win-x64.exe";
+             elif [ -f ./${OUTPUT_BASE}.exe ]; then mv ./${OUTPUT_BASE}.exe ${TARGET_DIR}/${OUTPUT_BASE}-win.exe; EXE_FOUND=true; echo "Moved ${OUTPUT_BASE}.exe";
+             fi
 
           if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
              echo "Looking for Linux executable..."
