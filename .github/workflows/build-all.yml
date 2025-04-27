@@ -67,7 +67,7 @@ jobs:
              elif [ -f ./${OUTPUT_BASE}.exe ]; then mv ./${OUTPUT_BASE}.exe ${TARGET_DIR}/${OUTPUT_BASE}-win.exe; EXE_FOUND=true; echo "Moved ${OUTPUT_BASE}.exe";
              fi
 
-          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+          elif [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
              echo "Looking for Linux executable..."
              if [ -f ./$OUTPUT_BASE ]; then mv ./$OUTPUT_BASE ${TARGET_DIR}/${OUTPUT_BASE}-linux-x64; EXE_FOUND=true; echo "Moved $OUTPUT_BASE";
              elif [ -f ./${OUTPUT_BASE}-linux ]; then mv ./${OUTPUT_BASE}-linux ${TARGET_DIR}/${OUTPUT_BASE}-linux-x64; EXE_FOUND=true; echo "Moved ${OUTPUT_BASE}-linux";
