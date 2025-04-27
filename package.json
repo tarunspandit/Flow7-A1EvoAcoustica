@@ -1,6 +1,6 @@
 {
   "name": "a1-evo-acoustica",
-  "version": "1.0.0",
+  "version": "4.0",
   "description": "Optimizer tool for Denon/Marantz AVRs (non-Windows builds).",
   "main": "main.js",
   "bin": "main.js",
@@ -16,15 +16,15 @@
   "license": "ISC",
   "dependencies": {
     "inquirer": "^8.2.4",
-    "open": "^8.4.0"
+    "open": "^8.4.0",
+    "xml2js": "^0.6.2"
   },
   "devDependencies": {
     "pkg": "^5.8.1"
   },
   "pkg": {
     "scripts": [
-      "main.js",
-      "sendFilters.js"
+      "main.js"
     ],
     "assets": [
       "A1Evo.html"
