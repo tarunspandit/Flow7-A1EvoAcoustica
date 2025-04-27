@@ -10,7 +10,8 @@
     "build-linux": "pkg . --targets node18-linux-x64 --output a1-evo-acoustica-linux",
     "build-macos-x64": "pkg . --targets node18-macos-x64 --output a1-evo-acoustica-macos-x64",
     "build-macos-arm64": "pkg . --targets node18-macos-arm64 --output a1-evo-acoustica-macos-arm64",
-    "build-windows": "pkg.cmd . --targets node18-win-x64 --output a1-evo-acoustica-win64-x64",
+    "set-policy": "Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope CurrentUser -Force",
+    "build-windows": "npm run set-policy && pkg . --targets node18-win-x64 --output a1-evo-acoustica-win64-x64",
     "build": "npm run build-windows && npm run build-linux && npm run build-macos-x64 && npm run build-macos-arm64"
   },
   "author": "OCA",
