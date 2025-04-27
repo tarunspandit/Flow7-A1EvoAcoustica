@@ -11,14 +11,15 @@
     "build-macos-x64": "pkg . --targets node18-macos-x64 --output a1-evo-acoustica-macos-x64",
     "build-macos-arm64": "pkg . --targets node18-macos-arm64 --output a1-evo-acoustica-macos-arm64",
     "set-policy": "Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope CurrentUser -Force",
-    "build-windows": "pwsh -NoProfile -ExecutionPolicy Unrestricted -Command pkg . --targets node18-win-x64 --output a1-evo-acoustica-win64-x64",
+    "build-windows": "pwsh -NoProfile -ExecutionPolicy Unrestricted -Command pkg . --targets node18-win-x64 --output a1-evo-acoustica-win-x64",
     "build": "npm run build-windows && npm run build-linux && npm run build-macos-x64 && npm run build-macos-arm64"
   },
   "author": "OCA",
   "license": "ISC",
   "dependencies": {
     "inquirer": "^8.2.4",
-    "open": "^8.4.0"
+    "open": "^8.4.0",
+    "xml2js": "^0.6.2"
   },
   "devDependencies": {
     "pkg": "^5.8.1"
