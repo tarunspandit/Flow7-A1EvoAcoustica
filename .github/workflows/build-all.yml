@@ -1,4 +1,4 @@
-name: Build A1 Evo Acoustica Tool (Linux & macOS) # Updated workflow name
+name: Build A1 Evo Acoustica Tool # Updated workflow name
 
 on:
   workflow_dispatch: # Allows manual triggering
@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ ubuntu-latest, macos-latest ]
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
     runs-on: ${{ matrix.os }}
     name: Build on ${{ matrix.os }} (Node 18)
     steps:
@@ -42,8 +42,22 @@ jobs:
         run: npm ci
 
       - name: 🛠️ Build Executables with pkg
-       
-        run: npm run build
+        shell: bash
+        run: |
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+              echo "Building Windows executable..."
+              npm run build-windows
+          elif [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+            echo "Building Linux executable..."
+            npm run build-linux
+          elif [ "${{ matrix.os }}" = "macos-latest" ]; then
+            echo "Building MacOS executables..."
+            npm run build-macos-arm64
+            npm run build-macos-x64
+          else
+            echo "::error::Unexpected OS for building: ${{ matrix.os }}"
+            exit 1
+          fi
 
       - name: 📜 List Files After Build
         shell: bash
@@ -59,8 +73,6 @@ jobs:
           EXE_FOUND=false # Flag
 
           echo "Moving executables for ${{ matrix.os }}..."
-
-          # --- REMOVED Windows block ---
 
           if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
              echo "Looking for Linux executable..."
@@ -78,12 +90,17 @@ jobs:
              fi
              # Remove fallback - we expect specific arch files on macOS runner
              # if [ "$EXE_FOUND" = false ] && [ -f ./${OUTPUT_BASE}-macos ]; then ...
+          elif [ "${{ matrix.os }}" = "windows-latest" ]; then
+             echo "Looking for Windows executable..."
+             if [ -f ./${OUTPUT_BASE}-win.exe ]; then mv ./${OUTPUT_BASE}-win.exe ${TARGET_DIR}/; EXE_FOUND=true; echo "Moved ${OUTPUT_BASE}-win.exe";
+             elif [ -f ./${OUTPUT_BASE}-win-x64.exe ]; then mv ./${OUTPUT_BASE}-win-x64.exe ${TARGET_DIR}/${OUTPUT_BASE}-win.exe; EXE_FOUND=true; echo "Moved ${OUTPUT_BASE}-win-x64.exe";
+             elif [ -f ./${OUTPUT_BASE}.exe ]; then mv ./${OUTPUT_BASE}.exe ${TARGET_DIR}/${OUTPUT_BASE}-win.exe; EXE_FOUND=true; echo "Moved ${OUTPUT_BASE}.exe";
+             fi
           else
             echo "::error::Unexpected OS for artifact moving: ${{ matrix.os }}"
             exit 1
           fi
 
-         
           if [ "$EXE_FOUND" = false ]; then
             echo "::error::No executable found to move for ${{ matrix.os }} with base name ${OUTPUT_BASE}"
             echo "Files present after build:"
@@ -99,3 +116,4 @@ jobs:
         with:
           name: a1-evo-acoustica-${{ matrix.os }}
           path: staging/
+
