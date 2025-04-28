@@ -15,7 +15,6 @@
     "build": "npm run build-windows && npm run build-linux && npm run build-macos-x64 && npm run build-macos-arm64"
   },
   "author": "OCA",
-  "license": "ISC",
   "dependencies": {
     "inquirer": "^8.2.4",
     "open": "^8.4.0",
