@@ -378,54 +378,60 @@ and noninfringement. Use at your own risk.
     opacity: 0.9;
   }
   .rolloff-wrapper {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-    margin-top: 1rem;
-    
-    font-size: 1rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      margin-top: 1rem;
+      font-size: 1rem;
   }
   .rolloff-controls {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    flex-wrap: wrap;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      flex-wrap: wrap;
   }
   .rolloff-text {
-    white-space: nowrap;
-    font-size: 0.8rem;
+      white-space: nowrap;
+      font-size: 0.8rem;
   }
   #rolloffFreqInput,
-  #rolloffSlopeSelect {
-    padding: 2px 6px;
-    border: 1px solid #4A5568;
-    border-radius: 4px;
-    background-color: #2D3748;
-    color: #E2E8F0;
-    font-size: 0.8rem;
+  #rolloffSlopeSelect,
+  #lpf4lfeSlopeSelect {
+      padding: 2px 6px;
+      border: 1px solid #4A5568;
+      border-radius: 4px;
+      background-color: #2D3748;
+      color: #E2E8F0;
+      font-size: 0.8rem;
   }
   #rolloffFreqInput {
-    width: 40px;
+      width: 40px;
   }
-  #rolloffSlopeSelect {
-    min-width: 65px;
-    cursor: pointer;
+  #rolloffSlopeSelect,
+  #lpf4lfeSlopeSelect {
+      min-width: 65px;
+      cursor: pointer;
+  }
+  #lpf4lfeSlopeSelect {
+      background-color: #2D3748 !important;
+      min-width: 80px;
   }
   #rolloffSlopeSelect:disabled,
+  #lpf4lfeSlopeSelect:disabled,
   #rolloffFreqInput:disabled {
-    cursor: not-allowed;
-    opacity: 0.6;
-    color: #A0AEC0;
+      cursor: not-allowed;
+      opacity: 0.6;
+      color: #A0AEC0;
   }
   #enableRolloff {
-    margin-right: 6px;
+      margin-right: 6px;
   }
   .checkbox-label {
-    display: flex;
-    align-items: center;
-    font-size: 1rem;
-    cursor: pointer;
+      display: flex;
+      align-items: center;
+      font-size: 1rem;
+      cursor: pointer;
   }
   .rolloff-note {
     font-size: 0.85rem;
@@ -604,7 +610,31 @@ and noninfringement. Use at your own risk.
   <div class="crossover-sliders">
   <div class="crossover-slider">
   <div class="slider-label">
-  <span>Minimum crossover frequency</span>
+  <span>Minimum crossover frequency - front mains</span>
+  <span id="minFreqValueFR">40 Hz</span>
+  </div>
+  <div class="tooltip-container">
+  <input type="range" id="minFreqSliderFR" class="slider" min="0" max="7" step="1" value="0">
+  <div class="tooltip">Select mimimum search frequency for front speakers crossover optimization</div>
+  </div>
+  </div>
+  <div class="crossover-slider">
+  <div class="slider-label">
+  <span>Maximum crossover frequency - front mains</span>
+  <span id="maxFreqValueFR">250 Hz</span>
+  </div>
+  <div class="tooltip-container">
+  <input type="range" id="maxFreqSliderFR" class="slider" min="0" max="10" step="1" value="10">
+  <div class="tooltip">Select maximum search frequency for front speakers crossover optimization</div>
+  </div>
+  </div>
+  </div>
+  </div>
+  <div class="slider-container">
+  <div class="crossover-sliders">
+  <div class="crossover-slider">
+  <div class="slider-label">
+  <span>Minimum crossover frequency - all other speakers</span>
   <span id="minFreqValue">40 Hz</span>
   </div>
   <div class="tooltip-container">
@@ -614,11 +644,11 @@ and noninfringement. Use at your own risk.
   </div>
   <div class="crossover-slider">
   <div class="slider-label">
-  <span>Maximum crossover frequency</span>
+  <span>Maximum crossover frequency - all other speakers</span>
   <span id="maxFreqValue">250 Hz</span>
   </div>
   <div class="tooltip-container">
-  <input type="range" id="maxFreqSlider" class="slider" min="0" max="8" step="1" value="8">
+  <input type="range" id="maxFreqSlider" class="slider" min="0" max="10" step="1" value="10">
   <div class="tooltip">Select maximum search frequency for crossover optimization</div>
   </div>
   </div>
@@ -635,16 +665,17 @@ and noninfringement. Use at your own risk.
   </div>
   <div class="rolloff-wrapper tooltip-container">
   <label class="checkbox-label">
-  <input type="checkbox" id="enableRolloff">Force custom cut-off frequency and roll-off slope for sub(s)
+  <input type="checkbox" id="enableRolloff">Force custom high-pass and low-pass filters for sub(s)
   </label>
-  <div class="tooltip">Select this option if your subwoofer(s) can extend below 16Hz or if you're using DIY units with custom roll-off profiles</div>
+  <div class="tooltip">Advanced option for use with special/DIY subwooofer(s) that can extend very low and have custom roll-off profiles</div>
   <div class="rolloff-controls">
-  <label class="rolloff-text">Freq:</label>
+  <label class="rolloff-text" for="rolloffFreqInput">HP freq:</label>
   <input type="number" id="rolloffFreqInput" placeholder="25" min="10" max="60" disabled>
   <span class="rolloff-text">Hz&nbsp;</span>
-  <label class="rolloff-text">&nbsp;Slope:</label>
-  <select id="rolloffSlopeSelect" disabled>
-  </select>
+  <label class="rolloff-text" for="rolloffSlopeSelect">&nbsp;HP slope:</label>
+  <select id="rolloffSlopeSelect" disabled></select>
+  <label class="rolloff-text" for="lpf4lfeSlopeSelect">&nbsp;LP freq:</label>
+  <select id="lpf4lfeSlopeSelect" disabled></select>
   </div>
 </div>
   <button id="buttonADY" onclick="extractMeasurements()" class="button2">
@@ -653,13 +684,11 @@ and noninfringement. Use at your own risk.
   <button id="startEvo" onclick="main()" class="button">
   Start optimization using the measurements currently loaded in<br>Room EQ Wizard
   </button>
-
   <div id="manualLoadSection" class="manual-load-container">
     <span id="manualLoadText" class="manual-load-text"></span>
     <input type="file" id="manualConfigFileInput" class="manual-file-input" accept=".avr">
     <div id="manualLoadError" class="manual-error-message"></div>
   </div>
-
   <div class="link-container">
   <a href="https://www.avnirvana.com/threads/rew-api-beta-releases.12981/" target="_blank" class="tooltip-link">Download latest REW Beta<span class="link-tooltip">Get the latest beta version of Room EQ Wizard with API support</span>
   </a>
@@ -677,7 +706,7 @@ and noninfringement. Use at your own risk.
   </div></div>
 </script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/14.0.1/math.min.js"></script><script>
 
-const evoVersion = "4.2";
+const evoVersion = "4.3";
 const baseUrl = 'http://localhost:4735/measurements', speedDelay = 255, maxDistanceLimit = 7.35;
 let micCalFile = new Array(16384).fill(0), audioCtx = null;
 let jsonName = 'receiver_config.avr';
@@ -685,10 +714,10 @@ let jsonType = 'avr';
 let jsonContent = null;
 let folderPath, localAppPath = null, ocafileName, sOs = null, isCirrusLogic, isGriffin, freqIndex = [], distFL = null, modelDelayLimit, minDistAccuracy, mSec = [], hardNegative, hardPositive, xt32 = true, xt = false;
 let nSpeakers = null, nSubs = null, subMinTrim = -12, subMaxTrim = 12, lpf4LFE, filterCompensation, targetCurvePath, targetLevel, responseTarget, dataTarget, tcName, rewMaxLimit, isPreProcessed = false, isAutomated;
-let customLevel = [], commandId = [], customDistance = [], customInvert = [], customCrossover = [], customFilter = [], deqFilter = [], subLPF = [], subTrim = [], customMinFreq = [], customMaxFreq = [], customMargin = [];
+let customLevel = [], commandId = [], customDistance = [], customInvert = [], customCrossover = [], customFilter = [], deqFilter = [], subTrim = [], customMinFreq = [], customMaxFreq = [], customMinFreqFR = [], customMaxFreqFR = [], customMargin = [];
 const defaultSlope = "L-R4";
 const dbValues = [-12, -15, -18, -20, -25]; //Equal loudness contours
-var subBoost = 0, bassFill = 0, levelLowVol = 2, enableInversion = false, minFreq = 40, maxFreq = 250, subRolloffEnabled = false, subRolloffFreq = null, subRolloffSlope = defaultSlope;
+var subBoost = 0, bassFill = 0, levelLowVol = 2, enableInversion = false, minFreq = 40, maxFreq = 250, minFreqFR = 40, maxFreqFR = 250, subRolloffEnabled = false, subRolloffFreq = null, subRolloffSlope = defaultSlope, lpf4lfeValue = null;
 
 async function floatsToBase64(floatArray) {
     const nativeFloat32Data = (floatArray instanceof Float32Array) ? floatArray : new Float32Array(floatArray);
@@ -1306,15 +1335,17 @@ async function main(){
   measurementChoice.classList.add('transitioned');
   const startTime = performance.now();
   console.infoBold(`** Customizations start **`);
-  const defaults = {subBoost: 0, bassFill: 0, levelLowVol: 2, enableInversion: false, minFreq: 40, maxFreq: 250};
-  const customizations = {subBoost, bassFill, levelLowVol, enableInversion, minFreq, maxFreq};
+  const defaults = {subBoost: 0, bassFill: 0, levelLowVol: 2, enableInversion: false, minFreq: 40, maxFreq: 250, minFreqFR: 40, maxFreqFR: 250};
+  const customizations = {subBoost, bassFill, levelLowVol, enableInversion, minFreq, maxFreq, minFreqFR, maxFreqFR};
   const descriptions = {
     subBoost: `Subwoofer EQ filters maximum allowed boost (dB): `,
     bassFill: `Subwoofer target curve infill value (dB): `,
     levelLowVol: `Low volume listening level offset (dB): `,
     enableInversion: `Out of phase 'Speaker' detection and automatic inversion? `,
-    minFreq: `Minimum searchable crossover frequency: `,
-    maxFreq: `Maximum searchable crossover frequency: `
+    minFreqFR: `Minimum searchable crossover frequency - front mains: `,
+    maxFreqFR: `Maximum searchable crossover frequency - front mains: `,
+    minFreq: `Minimum searchable crossover frequency - all other speakers: `,
+    maxFreq: `Maximum searchable crossover frequency - all other speakers: `
   };
   for (let key in customizations) {
     let displayValue = customizations[key];
@@ -1322,7 +1353,9 @@ async function main(){
     const message = `${descriptions[key]}${displayValue}${key === 'levelLowVol' ? ' dB' : ''}`;
     if (customizations[key] !== defaults[key]) {console.warn(message);} else {console.log(message);}
   }
-  if (subRolloffEnabled) console.warn(`Acoustica will not calculate subwoofer roll off frequency and force '${subRolloffSlope}'' roll off at ${subRolloffFreq}Hz!`);
+  if (subRolloffEnabled) {
+    console.warn(`Acoustica will not calculate subwoofer roll off frequencies and force '${subRolloffSlope}' high-pass filter @ ${subRolloffFreq}Hz & 'L-R4 (hardware fixed) @ ${lpf4lfeValue}Hz`);
+  }
   console.infoBold(`** Customizations end **`);
   await checkREW();
   await clearCommands();
@@ -1360,14 +1393,14 @@ async function main(){
   };
   console.infoBold(`'A1 Evo Acoustica' completed optimization of your system in ${formatTime(totalTime)} on ${getCurrentDateTime()}.`);
   console.warn(`Please return to main application and transfer saved calibration file (.oca) to your receiver with OPTION 3!`);
-  console.log(`You can view the original and optimized (final) responses of your system's speakers and subwoofers, along with the applied filters (filter), in REW's 'All SPL' tab`)
+  console.log(`You can view the original and optimized (final) responses of your system's speakers and subwoofers, along with the applied filters (filter), in REW's 'All SPL' tab`);
+  console.log(`You can find a copy of the full log of this optimization in the application folder with the same name as the optimization file with '.html' extension`)
   console.warn(`Optimal settings for loud / normal listening volume levels will be active in 'Flat' mode`);
   console.warn(`'Reference' mode can be used for low volume / late night listening.`);
   console.infoBold(`Enjoy your 'Evo'lved sound!`);
   console.infoBold(`OCA`);
   await updateAPI('blocking', false);
-  await updateAPI('inhibit-graph-updates', false);
-  await promptSaveLog();}
+  await updateAPI('inhibit-graph-updates', false);}
 async function checkREW() {
   try {
     await postSafe(`http://localhost:4735/eq/default-equaliser`, {manufacturer: "Generic", model: "Generic"}, "Default equaliser changed");
@@ -1981,8 +2014,6 @@ async function sortBass() {
   console.info('Anaylsing subwoofer capacity...');
   let minDiff = Infinity, bestFreq = null, exactDelta, avrDelta;
   const xoIndex = freqIndex.filter(freq => (freq >= 120 && freq <= 250));
-  await postNext('Smooth', nSpeakers + 1, {smoothing: "1/6"});
-  await new Promise((resolve) => setTimeout(resolve, speedDelay));
   for (const freqs of xoIndex) {
     const diff = await subLowpass(nSpeakers + 1, freqs);
     if (diff < minDiff) {
@@ -1991,6 +2022,10 @@ async function sortBass() {
     }
   }
   console.log(`High frequency roll off frequency (-6dB): ${bestFreq}Hz`);
+  if (lpf4lfeValue) {
+    bestFreq = lpf4lfeValue;
+    console.warn(`User override: Subwoofer lowpass roll off frequency is forced ${bestFreq}Hz with fixed slope L-R 24dB/oct`)
+  }
   var lowPass = bestFreq;
   lpf4LFE = bestFreq;
   minDiff = Infinity;
@@ -2137,7 +2172,7 @@ async function alignFronts() {
     } catch (e) {throw new Error(`Base64 processing failed: ${e.message}`);}
   };
   const isFrontsXT = (typeof xt !== "undefined" && !xt && typeof xt32 !== "undefined" && !xt32);
-  const xoCandidates = freqIndex.filter(f => f >= (isFrontsXT ? Math.max(minFreq ?? 40, 100) : (minFreq ?? 40)) && f <= (maxFreq ?? 250));
+  const xoCandidates = freqIndex.filter(f => f >= (isFrontsXT ? Math.max(minFreqFR ?? 40, 100) : (minFreqFR ?? 40)) && f <= (maxFreqFR ?? 250));
   const msNeg = (hardNegative ?? -20) / 1000, msPos = (hardPositive ?? 20) / 1000;
   const delayStep = 0.00003333333333333333, delayValues = [];
   for (let ts = msNeg; ts <= msPos; ts += delayStep) delayValues.push(ts);
@@ -2332,7 +2367,6 @@ async function optimizeSpeakers(sp1, sp2 = null, targetData) {
         [spk1, sub] = responses;
       }
       if (!spk1?.magnitude || !sub?.magnitude || (isPair && !spk2?.magnitude) || !spk1?.ppo || !sub?.ppo || (isPair && !spk2?.ppo) || spk1.ppo <= 0 || sub.ppo <= 0 || (isPair && spk2.ppo <= 0)) throw new Error(`Invalid/incomplete PPO response for ${freq}Hz.`);
-      console.debug(`POST-crossover PPO responses fetched for XO ${freq}Hz.`);
     } catch (e) {
       console.error(`Error fetching PPO responses for ${freq}Hz:`, e.message);
       continue;
@@ -2705,197 +2739,6 @@ async function optimizeSubs(i1, i2, timeShiftMinMs, timeShiftMaxMs, fMax) {
 async function cleanFilters(index) {
   const filters = Array.from({length: 22}, (_, i) => ({index: i + 1, type: "None", enabled: true, isAuto: true}));
   await postSafe(`${baseUrl}/${index}/filters`, { filters }, "Filters set");}
-async function promptSaveLog() {
-  function saveLogAsHTML() {
-  const logContainer = document.getElementById("logContainer");
-  const logHtml = logContainer ? logContainer.innerHTML : "<p>No log available!</p>";
-  const htmlContent = `
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>A1 Evo Acoustica Calibration Log</title>
-      <style>
-        body {
-          font-family: 'Poppins', 'Segoe UI', Roboto, sans-serif;
-          line-height: 1.6;
-          color: #333;
-          margin: 20px;
-        }
-        table {
-          width: 100%;
-          border-collapse: collapse;
-          margin-bottom: 20px;
-        }
-        th, td {
-          border: 1px solid #22C55E;
-          padding: 8px;
-          text-align: center;
-          font-size: 12px;
-        }
-        th {
-          background-color: #f5f5f5;
-          font-weight: bold;
-        }
-        pre {
-          background: #f5f5f5;
-          padding: 15px;
-          border-radius: 6px;
-          overflow-x: auto;
-          white-space: pre-wrap;
-          word-wrap: break-word;
-        }
-        .warning {
-          color: #FFA500; /* Orange for warnings */
-        }
-        .error {
-          color: #FF0000; /* Red for errors */
-        }
-        .log {
-          color: #00FF00; /* Green for important logs */
-        }
-        .info {
-          color: #ADD8E6; /* Light blue for info */
-        }
-        .infoBold {
-          color: #ADD8E6; /* Light blue for bold info */
-          font-weight: bold;
-        }
-        .infoGrey {
-          color: #A9A9A9; /* Grey for grey info */
-        }
-      </style>
-    </head>
-    <body>
-      <h1 style="color: #E2E8F0; border-bottom: 2px solid #2B6CB0; padding-bottom: 10px;">
-        A1 Evo Acoustica Optimization Log
-      </h1>
-      <p style="color: #A0AEC0;">${ocafileName}</p>
-      ${logHtml.replace(
-        /<div class="(\w+)">/g,
-        (match, className) => `<div class="${className}" style="color: ${getColorForClass(className)};">`
-      )}
-    </body>
-    </html>
-  `;
-  function getColorForClass(className) {
-    switch (className) {
-      case 'warning':
-        return '#FFA500';
-      case 'error':
-        return '#FF0000';
-      case 'log':
-        return '#2E8B57';
-      case 'info':
-        return '#4682B4';
-      case 'infoBold':
-        return '#4682B4';
-      case 'infoGrey':
-        return '#A9A9A9';
-      default:
-        return '#E2E8F0';
-    }}
-  const logBlob = new Blob([htmlContent], {type: 'text/html'});
-  const logUrl = URL.createObjectURL(logBlob);
-  const logLink = document.createElement("a");
-  
-  const now = new Date();
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const month = months[now.getMonth()];
-  const day = String(now.getDate()).padStart(2, '0');
-  const hours = String(now.getHours()).padStart(2, '0');
-  const minutes = String(now.getMinutes()).padStart(2, '0');
-  const timestamp = `${month}${day}_${hours}${minutes}`;
-  logLink.href = logUrl;
-  logLink.download = `${timestamp}_A1 Evo Acoustica Log.html`;
-  logLink.click();
-  URL.revokeObjectURL(logUrl);}
-  const modalHtml = `
-    <dialog style="
-      background: linear-gradient(135deg, #2D3748, #4A5568);
-      padding: 20px;
-      border-radius: 10px;
-      border: none;
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-      max-width: 800px;
-      font-family: 'Poppins', 'Segoe UI', Roboto, sans-serif;
-      font-size: 0.8rem;
-      color: #E2E8F0;
-      z-index: 3000; 
-    ">
-      <form method="dialog" style="margin: 0;">
-        <h3 style="
-          margin: 0 0 15px 0; 
-          font-size: 1.5rem; 
-          font-weight: bold; 
-          color: #E2E8F0;
-        ">
-          Save Log File?
-        </h3>
-        <p style="
-          margin-bottom: 20px; 
-          line-height: 1.6; 
-          color: #E2E8F0;
-        ">
-          The log file contains valuable information from this optimization session. Would you like to save it? The file will be named 
-          <strong>'[timestamp]_A1 Evo Acoustica Log.html'</strong>.
-        </p>
-        <div style="display: flex; justify-content: flex-end; gap: 10px;">
-          <button type="submit" value="cancel" style="
-            padding: 10px 20px; 
-            border: none; 
-            border-radius: 6px; 
-            background: #4A5568; 
-            color: #E2E8F0; 
-            font-size: 0.8rem; 
-            cursor: pointer; 
-            transition: background 0.2s ease;
-          ">
-            Cancel
-          </button>
-          <button type="submit" value="confirm" style="
-            padding: 10px 20px; 
-            border: none; 
-            border-radius: 6px; 
-            background: #2B6CB0; 
-            color: #E2E8F0; 
-            font-size: 0.8rem; 
-            font-weight: bold; 
-            cursor: pointer; 
-            transition: background 0.2s ease;
-          ">
-            Save
-          </button>
-        </div>
-      </form>
-    </dialog>
-  `;
-  const wrapper = document.createElement('div');
-  wrapper.innerHTML = modalHtml;
-  const dialog = wrapper.querySelector('dialog');
-  const styleElem = document.createElement('style');
-  styleElem.innerHTML = `
-    dialog::backdrop {
-      background: rgba(0, 0, 0, 0.6); 
-      backdrop-filter: blur(2px);
-    }
-  `;
-  document.head.appendChild(styleElem);
-  document.body.appendChild(dialog);
-  dialog.showModal();
-  const result = await new Promise(resolve => {
-    dialog.addEventListener('close', () => {
-      const returnValue = dialog.returnValue;
-      resolve(returnValue === 'confirm');
-      dialog.remove();
-    });
-  });
-  if (result) {
-    saveLogAsHTML();
-  } else {
-    console.log("Log save canceled by user!");
-  }}
 async function fixSubs4REW() {
   console.info(`Reversing 'Linkwitz Riley 250Hz 24dB/octave lowpass filter' applied by the AVR to REW subwoofer measurements...`);
   const antiLPF = {
@@ -3019,53 +2862,50 @@ async function lowVolumeFilters() {
     await postDelete(spKey);
   }
   await postDelete(filterIndice);}
-async function saveOcaToServer(ocaData, filename) { // Added filename parameter
-  const saveButton = document.getElementById('saveButtonId'); // Update ID if needed
+async function saveOcaToServer(ocaData, filename, logHtml) {
+  const saveButton = document.getElementById('saveButtonId');
   if (saveButton) saveButton.disabled = true;
-  const statusElement = document.getElementById('saveStatus'); // Update ID if needed
-  if (statusElement) statusElement.textContent = `Saving ${filename}...`;
-
+  const statusElement = document.getElementById('saveStatus');
+  if (statusElement) statusElement.textContent = `Saving ${filename} and log...`;
   try {
     const saveUrl = '/api/save-oca';
     const payload = {
-        ocaData: ocaData,       // The main data object
-        filename: filename      // The filename generated by generateOCA
+        ocaData: ocaData,
+        filename: filename,
+        logHtml: logHtml
     };
-
     const response = await fetch(saveUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      // Send the payload containing both data and filename
       body: JSON.stringify(payload),
     });
-
     if (!response.ok) {
       let errorMsg = `Server responded with status: ${response.status} ${response.statusText}`;
       try { const errorData = await response.json(); errorMsg += ` - ${errorData.message || 'No specific error message.'}`; } catch (e) {}
       throw new Error(errorMsg);
     }
-
     const result = await response.json();
-
     if (result.success) {
-      console.log("Calibration file saved successfully by backend:", result.filename);
-      // Use result.filename as saved by backend (might differ slightly due to sanitization)
-      const successMsg = `Calibration saved successfully as:\n${result.filename}\n(Located in the application folder.)`;
+      console.log("Calibration and log files saved successfully by backend:", result.ocaFilename, result.logFilename);
+      const successMsg = `Files saved successfully:\n- ${result.ocaFilename}\n- ${result.logFilename}\n(Located in the application folder.)`;
        if (statusElement) statusElement.textContent = successMsg;
       alert(successMsg);
     } else {
-      throw new Error(result.message || 'Server reported an unspecified error during saving.');
+      let errMsg = result.message || 'Server reported an unspecified error during saving.';
+      if(result.errorDetails) {
+          errMsg += `\nDetails: ${JSON.stringify(result.errorDetails)}`;
+      }
+      throw new Error(errMsg);
     }
-
   } catch (error) {
-    console.error("Error saving OCA file via server:", error);
-     const errorText = `Error saving calibration file:\n${error.message}`;
+    console.error("Error saving files via server:", error);
+     const errorText = `Error saving calibration/log files:\n${error.message}`;
      if (statusElement) statusElement.textContent = errorText;
     alert(errorText);
   } finally {
-      if (saveButton) saveButton.disabled = false;
+     if (saveButton) saveButton.disabled = false;
   }}
 async function generateOCA() {
   try {
@@ -3105,15 +2945,17 @@ async function generateOCA() {
     baseOca.numberOfSubwoofers = nSubs;
     baseOca.lpfForLFE = lpf4LFE;
     let ocafileName;
-    !subRolloffEnabled ? ocafileName = `${timestamp}_${tcName}_swFill${bassFill}_eqBoost${subBoost}_lowVolOffset${levelLowVol}_A1EvoAcoustica_${evoVersion}.oca` :
-    ocafileName = `${timestamp}_${tcName}_swFill${bassFill}_eqBoost${subBoost}_swRoll${subRolloffFreq}_${subRolloffSlope}_A1EvoAcoustica_${evoVersion}.oca`;
+    !subRolloffEnabled ? ocafileName = `${timestamp}_${tcName}_swFill${bassFill}_eqBoost${subBoost}_lowVolOffset${dbValues[levelLowVol]}_A1EvoAcoustica_${evoVersion}.oca` :
+    ocafileName = `${timestamp}_${tcName}_swFill${bassFill}_eqBoost${subBoost}_swRoll${subRolloffFreq}_${subRolloffSlope}_lowVolOffset${dbValues[levelLowVol]}_A1EvoAcoustica_${evoVersion}.oca`;
     ocafileName = ocafileName
       .replace(/\s+/g, '_')
       .replace(/[^\w.-]/g, '_')
       .replace(/\.+/g, '.')
       .replace(/^_+|_+$/g, '')
       .replace(/_+/g, '_');
-    await saveOcaToServer(baseOca, ocafileName); 
+    const logContainer = document.getElementById("logContainer");
+    const logHtml = logContainer.innerHTML;
+    await saveOcaToServer(baseOca, ocafileName, logHtml);
   } catch (error) {
      console.error("Error during .oca file generation or sending:", error);
      alert("An error occurred during the final calculation or data sending process. Please check the console for details.");
@@ -3151,13 +2993,14 @@ document.addEventListener('DOMContentLoaded', () => {
   autoLoadConfiguration();
   fetchAppPath().catch(err => {
        console.warn("Initial fetch for app path failed (may affect saving):", err.message);
-       // Optionally inform user that saving might require backend restart
-   });
+  });
   UpdateSubBoost(subBoost, true);
   UpdateBassFill(bassFill, true);
   UpdateLowVolume(levelLowVol, true);
   UpdateMinFreq(minFreq, true);
   UpdateMaxFreq(maxFreq, true);
+  UpdateMinFreqFR(minFreqFR, true);
+  UpdateMaxFreqFR(maxFreqFR, true);
   UpdateenableInversion(enableInversion, false);
   document.getElementById('bassFillSlider').addEventListener('input', function (e) {
     const normalizedValue = e.target.value.replace(',', '.');
@@ -3180,47 +3023,66 @@ document.addEventListener('DOMContentLoaded', () => {
     const value = customMaxFreq[index];
     UpdateMaxFreq(value, false);
   });
+  document.getElementById('minFreqSliderFR').addEventListener('input', function (e) {
+    const index = parseInt(e.target.value, 10);
+    const value = customMinFreqFR[index];
+    UpdateMinFreqFR(value, false);
+  });
+  document.getElementById('maxFreqSliderFR').addEventListener('input', function (e) {
+    const index = parseInt(e.target.value, 10);
+    const value = customMaxFreqFR[index];
+    UpdateMaxFreqFR(value, false);
+  });
   document.getElementById('disableSpeakerInversion').addEventListener('change', function (event) {
     UpdateenableInversion(event.target.checked, false);
   });
   const rolloffToggle = document.getElementById('enableRolloff');
   const rolloffFreq = document.getElementById('rolloffFreqInput');
   const rolloffSlope = document.getElementById('rolloffSlopeSelect');
-  const slopeOptions = [
-    "BE2", "BE3", "BE4", "BE5", "BE6", "BE7", "BE8",
-    "BU1", "BU2", "BU3", "BU4", "BU5", "BU6", "BU7", "BU8",
-    "L-R2", "L-R4", "L-R6", "L-R8"
-  ];
+  const lpf4lfeSlope = document.getElementById('lpf4lfeSlopeSelect');
+  const slopeOptions = ["BE2", "BE3", "BE4", "BE5", "BE6", "BE7", "BE8", "BU1", "BU2", "BU3", "BU4", "BU5", "BU6", "BU7", "BU8", "L-R2", "L-R4", "L-R6", "L-R8"];
+  const lpf4lfeOptions = ["80Hz", "90Hz", "100Hz", "110Hz", "120Hz", "150Hz", "180Hz", "200Hz", "250Hz"];
   if (rolloffSlope) {
     slopeOptions.forEach(optionValue => {
       const option = document.createElement('option');
       option.value = optionValue;
       option.textContent = optionValue;
-      if (optionValue === defaultSlope) {
-        option.selected = true;
-      }
+      if (optionValue === defaultSlope) option.selected = true;
       rolloffSlope.appendChild(option);
     });
   }
-  if (rolloffToggle && rolloffFreq && rolloffSlope) {
+  if (lpf4lfeSlope) {
+    lpf4lfeOptions.forEach(optionValue => {
+      const option = document.createElement('option');
+      option.value = optionValue;
+      option.textContent = optionValue;
+      if (optionValue === lpf4lfeOptions[4]) option.selected = true;
+      lpf4lfeSlope.appendChild(option);
+    });
+  }
+  if (rolloffToggle && rolloffFreq && rolloffSlope && lpf4lfeSlope) {
     const updateRolloffValues = () => {
       subRolloffEnabled = rolloffToggle.checked;
       const parsedFreq = parseFloat(rolloffFreq.value.replace(',', '.'));
       subRolloffFreq = (subRolloffEnabled && !isNaN(parsedFreq) && parsedFreq >= 10 && parsedFreq <= 60) ? parsedFreq : null;
       subRolloffSlope = subRolloffEnabled ? rolloffSlope.value : defaultSlope;
+      lpf4lfeValue = subRolloffEnabled ? parseInt(lpf4lfeSlope.value.replace('Hz', '')) : null; 
     };
     rolloffFreq.disabled = !rolloffToggle.checked;
     rolloffSlope.disabled = !rolloffToggle.checked;
+    lpf4lfeSlope.disabled = !rolloffToggle.checked; 
     updateRolloffValues();
     rolloffToggle.addEventListener('change', () => {
       const isChecked = rolloffToggle.checked;
       rolloffFreq.disabled = !isChecked;
       rolloffSlope.disabled = !isChecked;
+      lpf4lfeSlope.disabled = !isChecked;
       if (isChecked && (rolloffFreq.value === "" || isNaN(parseFloat(rolloffFreq.value.replace(',', '.'))) || parseFloat(rolloffFreq.value.replace(',', '.')) < 10 || parseFloat(rolloffFreq.value.replace(',', '.')) > 60 )) {rolloffFreq.value = rolloffFreq.placeholder || "25";}
       updateRolloffValues();
     });
     rolloffFreq.addEventListener('input', updateRolloffValues);
     rolloffSlope.addEventListener('change', updateRolloffValues);
+    lpf4lfeSlope.addEventListener('change', updateRolloffValues);
   } else {
     console.error("One or more rolloff control elements not found!");
   }});
@@ -3257,16 +3119,13 @@ function autoLoadConfiguration() {
             });
         })
         .then(data => {
-            //console.log(`Successfully parsed ${configFileName}. Assigning to jsonContent.`);
             jsonContent = data;
             const loadingMsgElement = document.getElementById('loadingMessage');
             if (loadingMsgElement) loadingMsgElement.style.display = 'none';
             const measurementChoice = document.getElementById('measurementChoice');
             if (measurementChoice) measurementChoice.classList.remove('hidden');
-            //console.log("Attempting to run readContents()...");
             try {
                 readContents();
-                //console.log("readContents() completed successfully.");
             } catch (readContentsError) {
                 console.error("Error occurred *inside* readContents():", readContentsError);
                 throw new Error(`Error during configuration processing: ${readContentsError.message}`);
@@ -3375,7 +3234,9 @@ function readContents() {
     const no180 = modelsNo180xo.includes(model);
     if (!no180) freqIndex.splice(8, 0, extraFreq);
     customMinFreq = freqIndex.filter(freq => freq < 180);
-    customMaxFreq = freqIndex.filter(freq => freq >= 60);
+    customMaxFreq = freqIndex.filter(freq => freq >= 40);
+    customMinFreqFR = freqIndex.filter(freq => freq < 180);
+    customMaxFreqFR = freqIndex.filter(freq => freq >= 40);
     distFL = 2.75;
     console.info(`Model specific speed of sound setting: ${sOs} m/s`);
     console.info(`Model is capable of setting 180Hz crossover: ${!no180}`);
@@ -3443,8 +3304,6 @@ function UpdateMinFreq(minFreqHz, syncSlider) {
       const index = customMinFreq.indexOf(minFreqHz);
       if (index !== -1) document.getElementById('minFreqSlider').value = index;
     }
-  } else {
-    console.error(`Invalid input: ${minFreqHz}`);
   }}
 function UpdateMaxFreq(maxFreqHz, syncSlider) {
   if (!isNaN(maxFreqHz)) {
@@ -3455,8 +3314,26 @@ function UpdateMaxFreq(maxFreqHz, syncSlider) {
       const index = customMaxFreq.findIndex(freq => Math.abs(freq - maxFreqHz) < 0.1);
       if (index !== -1) document.getElementById('maxFreqSlider').value = index; 
     }
-  } else {
-    console.error(`Invalid input: ${maxFreqHz}`);
+  }}
+function UpdateMinFreqFR(minFreqHzFR, syncSlider) {
+  if (!isNaN(minFreqHzFR)) {
+    if (minFreqHzFR > maxFreqFR) return;
+    minFreqFR = minFreqHzFR;
+    document.getElementById('minFreqValueFR').textContent = minFreqHzFR + ' Hz';
+    if (syncSlider) {
+      const index = customMinFreq.indexOf(minFreqHzFR);
+      if (index !== -1) document.getElementById('minFreqSliderFR').value = index;
+    }
+  }}
+function UpdateMaxFreqFR(maxFreqHzFR, syncSlider) {
+  if (!isNaN(maxFreqHzFR)) {
+    if (maxFreqHzFR < minFreqFR) return;
+    maxFreqFR = maxFreqHzFR;
+    document.getElementById('maxFreqValueFR').textContent = maxFreqHzFR + ' Hz';
+    if (syncSlider) {
+      const index = customMaxFreq.findIndex(freq => Math.abs(freq - maxFreqHzFR) < 0.1);
+      if (index !== -1) document.getElementById('maxFreqSliderFR').value = index; 
+    }
   }}
 function UpdateenableInversion(disableInv, syncToggle) {
   enableInversion = disableInv;
