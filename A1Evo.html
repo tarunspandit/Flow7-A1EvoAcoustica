@@ -850,7 +850,7 @@ async function extractMeasurements() {
       ady: async () => {
         const { detectedChannels } = jData;
         for (const [key, detectedChannel] of Object.entries(detectedChannels)) {
-          const { responseData, commandId } = detectedChannel;
+          const {responseData, commandId} = detectedChannel;
           if (commandId && commandId.startsWith("SW")) {
             hasSubwoofer = true;
           }
@@ -1123,6 +1123,7 @@ async function checkAutomatedMeasurements(){
     }
   }
   console.info(`Preparing measurement layout for optimization...`);
+  if(nTotal > 50) console.warn('This will take a while due to the number of measurements you have uploaded, please be patient!')
   function naturalStringCompare(a, b) {
      return a.localeCompare(b, undefined, {numeric: true, sensitivity: 'base'});
   }
