@@ -1373,7 +1373,6 @@ async function main(){
   await sortBass();
   await refResults();
   await lowVolumeFilters();
-  const oceFilename = await generateOCA();
   const endTime = performance.now();
   const totalTime = (endTime - startTime) / 1000;
   const formatTime = (seconds) => {
@@ -1392,11 +1391,12 @@ async function main(){
     return now.toLocaleString('en-US', {year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true});
   };
   console.infoBold(`'A1 Evo Acoustica' completed optimization of your system in ${formatTime(totalTime)} on ${getCurrentDateTime()}.`);
-  console.warn(`Please return to main application and transfer saved calibration file (.oca) to your receiver with OPTION 3!`);
-  console.log(`You can view the original and optimized (final) responses of your system's speakers and subwoofers, along with the applied filters (filter), in REW's 'All SPL' tab`);
+  const oceFilename = await generateOCA();
+  console.warn(`Please return to main application and transfer saved calibration file (.oca) to your receiver using option '3'`);
+  console.log(`You can view the original and optimized (final) responses of your system's speakers and subwoofers, along with the applied filters (filter), in REW 'All SPL' tab`);
   console.log(`You can find a copy of the full log of this optimization in the application folder with the same name as the optimization file with '.html' extension`)
-  console.warn(`Optimal settings for loud / normal listening volume levels will be active in 'Flat' mode`);
-  console.warn(`'Reference' mode can be used for low volume / late night listening.`);
+  console.log(`Optimal settings for loud / normal listening volume levels will be active in 'Flat' mode`);
+  console.log(`'Reference' mode can be used for low volume / late night listening.`);
   console.infoBold(`Enjoy your 'Evo'lved sound!`);
   console.infoBold(`OCA`);
   await updateAPI('blocking', false);
@@ -2150,16 +2150,6 @@ async function subHighpass(index, freq) {
   const magValue3 = data2.getFloat32(offset3 * 4, false);
   return Math.abs(magValue2 - magValue1 - 24) + Math.abs(magValue3 - magValue2 - 6);}
 async function alignFronts() {
-  const sp1 = 1, sp2 = 2, sw1 = nSpeakers + 1;
-  console.info("Optimizing crossover, delay, and inversion for Front L/R + Sub...");
-  let maxSumPower = -Infinity;
-  let minSumPower = Infinity;
-  await Promise.all([sp1, sp2, sw1].map(cleanFilters));
-  const dB2Amp = dB => Math.pow(10, dB / 20);
-  const toRad = deg => deg * Math.PI / 180;
-  const MIN_LINEAR_AMP = 1e-9, twoPi = 2 * Math.PI;
-  const ppoFreq = (s, ppo, i) => s * Math.pow(2, i / ppo);
-  const ppoIndex = (f, s, ppo) => Math.log2(f / s) * ppo;
   const base64ToF32 = b64 => {
     if (typeof b64 !== "string" || !b64.length) throw new Error("Invalid Base64");
     try {
@@ -2167,16 +2157,29 @@ async function alignFronts() {
       for (let i = 0; i < bin.length; i++) v[i] = bin.charCodeAt(i);
       if (buf.byteLength % 4 !== 0) throw new Error("Decoded length not multiple of 4");
       const swap = new Uint8Array(buf.byteLength);
-      for (let i = 0; i < v.length; i += 4) [swap[i], swap[i+1], swap[i+2], swap[i+3]] = [v[i+3], v[i+2], v[i+1], v[i]];
+      for (let i = 0; i < v.length; i += 4) [swap[i], swap[i + 1], swap[i + 2], swap[i + 3]] = [v[i + 3], v[i + 2], v[i + 1], v[i]];
       return new Float32Array(swap.buffer);
     } catch (e) {throw new Error(`Base64 processing failed: ${e.message}`);}
   };
+  const sp1 = 1, sp2 = 2, sw1 = nSpeakers + 1;
+  console.info("Optimizing crossover, delay, and inversion for Front L/R + Sub...");
+  let maxSumPower = -Infinity;
+  let minSumPower = Infinity;
+  await Promise.all([sp1, sp2, sw1].map(cleanFilters));
+  const dB2Amp = dB => Math.pow(10, dB / 20);
+  const amp2Db = amp => (amp > 1e-15) ? 20 * Math.log10(amp) : -120; // Avoid log(0)
+  const toRad = deg => deg * Math.PI / 180;
+  const ppoFreq = (s, ppo, i) => s * Math.pow(2, i / ppo);
+  const ppoIndex = (f, s, ppo) => Math.log2(f / s) * ppo;
+  const twoPi = 2 * Math.PI;
   const isFrontsXT = (typeof xt !== "undefined" && !xt && typeof xt32 !== "undefined" && !xt32);
   const xoCandidates = freqIndex.filter(f => f >= (isFrontsXT ? Math.max(minFreqFR ?? 40, 100) : (minFreqFR ?? 40)) && f <= (maxFreqFR ?? 250));
   const msNeg = (hardNegative ?? -20) / 1000, msPos = (hardPositive ?? 20) / 1000;
   const delayStep = 0.00003333333333333333, delayValues = [];
   for (let ts = msNeg; ts <= msPos; ts += delayStep) delayValues.push(ts);
-  const inversionConfigs = [{ subInverted: false }, { subInverted: true }];
+  const inversionConfigs = [{subInverted: false}, {subInverted: true}];
+  const subAmplitudeScalingFactor = 2; //Assuming mono bass
+  console.info(`Using subwoofer amplitude scaling factor: ${subAmplitudeScalingFactor.toFixed(3)} (${(20 * Math.log10(subAmplitudeScalingFactor)).toFixed(1)} dB)`);
   const optimizationStartFreq = 16, optimizationEndFreq = 350;
   let bestOverallSumPower = -Infinity, bestOverallConfig = null;
   const freqResults = [];
@@ -2189,7 +2192,21 @@ async function alignFronts() {
       console.error(`Error fetching post XO responses for ${freq}Hz:`, e);
       continue;
     }
-    let bestConfigForFreq = { sumPower: -Infinity };
+    const spk1Complex = [];
+    for (let i = 0; i < speaker1_postXO.magnitude.length; i++) {
+        const amp = dB2Amp(speaker1_postXO.magnitude[i]);
+        const phase = toRad(speaker1_postXO.phase[i]);
+        spk1Complex.push({real: amp * Math.cos(phase), imag: amp * Math.sin(phase)});
+    }
+    const spk2Complex = [];
+    for (let i = 0; i < speaker2_postXO.magnitude.length; i++) {
+        const amp = dB2Amp(speaker2_postXO.magnitude[i]);
+        const phase = toRad(speaker2_postXO.phase[i]);
+        spk2Complex.push({real: amp * Math.cos(phase), imag: amp * Math.sin(phase)});
+    }
+    const subRawAmpPhase = [];
+    for (let i = 0; i < sub_postXO.magnitude.length; i++) subRawAmpPhase.push({amp: dB2Amp(sub_postXO.magnitude[i]), phase: toRad(sub_postXO.phase[i])});
+    let bestConfigForFreq = {sumPower: -Infinity};
     for (const config of inversionConfigs) {
       for (const ts of delayValues) {
         let currentSumPower = 0, validPoints = 0;
@@ -2198,57 +2215,65 @@ async function alignFronts() {
           if (f < optimizationStartFreq || f > optimizationEndFreq) continue;
           const idxSpk1_post = Math.min(Math.max(Math.round(ppoIndex(f, speaker1_postXO.startFreq, speaker1_postXO.ppo)), 0), speaker1_postXO.magnitude.length - 1);
           const idxSpk2_post = Math.min(Math.max(Math.round(ppoIndex(f, speaker2_postXO.startFreq, speaker2_postXO.ppo)), 0), speaker2_postXO.magnitude.length - 1);
-          const idxSub = iSub;
-          const spk1Amp_post = dB2Amp(speaker1_postXO.magnitude[idxSpk1_post]);
-          const spk1Phase_post = toRad(speaker1_postXO.phase[idxSpk1_post]);
-          const spk2Amp_post = dB2Amp(speaker2_postXO.magnitude[idxSpk2_post]);
-          const spk2Phase_post = toRad(speaker2_postXO.phase[idxSpk2_post]);
-          const subAmp = dB2Amp(sub_postXO.magnitude[idxSub]);
-          const subPhase = toRad(sub_postXO.phase[idxSub]);
-          let adjSubPhase = subPhase + twoPi * ts * f;
+          const spk1 = spk1Complex[idxSpk1_post];
+          const spk2 = spk2Complex[idxSpk2_post];
+          const subRaw = subRawAmpPhase[iSub];
+          const subAmp_scaled = subRaw.amp * subAmplitudeScalingFactor;
+          let adjSubPhase = subRaw.phase + twoPi * ts * f;
           if (config.subInverted) adjSubPhase += Math.PI;
-          const totalReal = spk1Amp_post * Math.cos(spk1Phase_post) + spk2Amp_post * Math.cos(spk2Phase_post) + subAmp * Math.cos(adjSubPhase);
-          const totalImag = spk1Amp_post * Math.sin(spk1Phase_post) + spk2Amp_post * Math.sin(spk2Phase_post) + subAmp * Math.sin(adjSubPhase);
+          const subReal = subAmp_scaled * Math.cos(adjSubPhase);
+          const subImag = subAmp_scaled * Math.sin(adjSubPhase);
+          const totalReal = spk1.real + spk2.real + subReal;
+          const totalImag = spk1.imag + spk2.imag + subImag;
           const power = totalReal ** 2 + totalImag ** 2;
           currentSumPower += power;
           validPoints++;
         }
-        if (validPoints && currentSumPower > bestConfigForFreq.sumPower) {bestConfigForFreq = {sumPower: currentSumPower, ts, subInverted: config.subInverted, validPoints};}
+        if (validPoints > 0 && currentSumPower > bestConfigForFreq.sumPower) {
+          bestConfigForFreq = {
+            sumPower: currentSumPower, ts, subInverted: config.subInverted, validPoints
+          };
+        }
       }
     }
-    if (bestConfigForFreq.sumPower > -Infinity) {
-      freqResults.push({freq, overallMagEstimate: 10 * Math.log10(bestConfigForFreq.sumPower / bestConfigForFreq.validPoints), config: bestConfigForFreq});
+    if (bestConfigForFreq.sumPower > -Infinity && bestConfigForFreq.validPoints > 0) {
+      const avgPower = bestConfigForFreq.sumPower / bestConfigForFreq.validPoints;
+      const overallMagEstimate = amp2Db(Math.sqrt(avgPower));
+      freqResults.push({freq: freq, overallMagEstimate: overallMagEstimate, config: bestConfigForFreq});
       if (bestConfigForFreq.sumPower > bestOverallSumPower) {
         bestOverallSumPower = bestConfigForFreq.sumPower;
-        bestOverallConfig = {freq, ts: bestConfigForFreq.ts, subInverted: bestConfigForFreq.subInverted};
+        bestOverallConfig = {freq: freq, ts: bestConfigForFreq.ts, subInverted: bestConfigForFreq.subInverted};
       }
       maxSumPower = Math.max(maxSumPower, bestConfigForFreq.sumPower);
       minSumPower = Math.min(minSumPower, bestConfigForFreq.sumPower);
+    } else {
+       console.warn(`No valid points found for crossover frequency ${freq} Hz within the optimization range.`);
     }
   }
+  let maxOverallMagEstimate = -Infinity;
   for (const result of freqResults) {
-    const normalizedScore = (result.config.sumPower - minSumPower) / (maxSumPower - minSumPower);
-    result.scorePercent = normalizedScore * 100;
-    console.log(`Power score ${result.freq}Hz => ${result.scorePercent.toFixed(2)}%`);
+    if (result.overallMagEstimate > maxOverallMagEstimate) maxOverallMagEstimate = result.overallMagEstimate;
   }
+  console.log("Front speakers crossover performance analysis:");
+  freqResults.sort((a, b) => b.overallMagEstimate - a.overallMagEstimate);
+  for (const result of freqResults) console.log(`${result.freq}Hz => Estimated total loudness: ${result.overallMagEstimate.toFixed(4)}dB | Required subwoofer delay: ${(result.config.ts * 1000).toFixed(2)}ms | Sub requires inversion: ${result.config.subInverted}`);
   if (bestOverallConfig) {
-    console.infoBold(`Optimal front speakers configuration found => Xover: ${bestOverallConfig.freq}Hz, Subwoofer applied delay: ${(bestOverallConfig.ts * 1000).toFixed(4)}ms, Subwoofer inverted: ${bestOverallConfig.subInverted}`);
+    console.infoBold(`Optimal front speaker configuration selected => Xover: ${bestOverallConfig.freq}Hz, Subwoofer applied delay: ${(bestOverallConfig.ts * 1000).toFixed(4)}ms, Subwoofer inverted: ${bestOverallConfig.subInverted}`);
     customCrossover[sp1] = bestOverallConfig.freq;
     customCrossover[sp2] = bestOverallConfig.freq;
     await postNext('Offset t=0', nSpeakers + 1, { offset: bestOverallConfig.ts, unit: "seconds" });
     let minDist = Infinity;
     for (let i = 1; i <= nSpeakers + nSubs; i++) {
-      if (i > nSpeakers) { mSec[i] += bestOverallConfig.ts;
-      customInvert[i] = !!(customInvert[i] ^ bestOverallConfig.subInverted);
-    }
-    customDistance[i] = Math.round((distFL + (mSec[i] - mSec[1]) * sOs) * 100) / 100;
-    if (customDistance[i] < minDist) minDist = customDistance[i];
-    if (customDistance[i] > (minDist + maxDistanceLimit)) customDistance[i] = minDist + maxDistanceLimit;
+      if (i > nSpeakers) {
+        mSec[i] += bestOverallConfig.ts;
+        customInvert[i] = !!(customInvert[i] ^ bestOverallConfig.subInverted);
+      }
+      customDistance[i] = Math.round((distFL + (mSec[i] - mSec[1]) * sOs) * 100) / 100;
+      if (customDistance[i] < minDist) minDist = customDistance[i];
+      if (customDistance[i] > (minDist + maxDistanceLimit)) customDistance[i] = minDist + maxDistanceLimit;
     }
     if (minDist < 0) {
-      for (let i = 1; i <= nSpeakers + nSubs; i++) {
-        customDistance[i] -= minDist;
-      }
+      for (let i = 1; i <= nSpeakers + nSubs; i++) customDistance[i] -= minDist;
       minDist = 0;
     }
     console.infoBold('Final speaker and subwoofer distances:');
@@ -2257,12 +2282,8 @@ async function alignFronts() {
       if (customDistance[i] > maxDist) maxDist = customDistance[i];
       console.log(`${commandId[i]}: ${customDistance[i].toFixed(2)}m (${(customDistance[i] * 3.28084).toFixed(2)}ft)`);
     }
-    if ((maxDist - minDist) > 6) {
-      console.warn(`A1 Evo used 'extended' maximum speaker distance difference limit in your optimized set up (6m vs 7.35m). Do not edit distance settings in the receiver's setup menu as it may reset them back to defaults, disrupting calibration!`);
-    }
-    if (customInvert[nSpeakers + 1]) {
-      await postSafe(`${baseUrl}/${nSpeakers + 1}/command`, { command: "Invert" }, "Invert completed");
-    }
+    if ((maxDist - minDist) > 6) console.warn(`A1 Evo used 'extended' maximum speaker distance difference limit in your optimized set up (6m vs 7.35m). Do not edit distance settings in the receiver's setup menu as it may reset them back to defaults, disrupting calibration!`);
+    if (customInvert[nSpeakers + 1]) await postSafe(`${baseUrl}/${nSpeakers + 1}/command`, { command: "Invert" }, "Invert completed");
   } else {
     console.error("Failed to find optimal configuration for front speakers.");
     customCrossover[sp1] = customCrossover[2] = 80;
@@ -2730,7 +2751,7 @@ async function optimizeSubs(i1, i2, timeShiftMinMs, timeShiftMaxMs, fMax) {
     if (bestForInversion.sumPower > bestConfig.sumPower) bestConfig = bestForInversion;
   }
   const avgPower = bestConfig.sumPower / nIndices;
-  const overallMag = 20 * Math.log10(avgPower);
+  const overallMag = 10 * Math.log10(avgPower);
   console.infoUpdate(`Analysing permutation: Required time delay: ${(bestConfig.timeShift * 1000).toFixed(3)} ms, inversion required: ${bestConfig.sub2Inverted}, estimated sound pressure: ${overallMag.toFixed(2)} dB`);
   const bestDelay = -bestConfig.timeShift * 1000;
   const bestInvert = bestConfig.sub2Inverted;
@@ -2953,14 +2974,70 @@ async function generateOCA() {
       .replace(/\.+/g, '.')
       .replace(/^_+|_+$/g, '')
       .replace(/_+/g, '_');
-    const logContainer = document.getElementById("logContainer");
-    const logHtml = logContainer.innerHTML;
+    const rawLogHtml = document.getElementById("logContainer").innerHTML;
+    const logHtml = wrapLogHtml(rawLogHtml);
     await saveOcaToServer(baseOca, ocafileName, logHtml);
   } catch (error) {
      console.error("Error during .oca file generation or sending:", error);
      alert("An error occurred during the final calculation or data sending process. Please check the console for details.");
   }
   return;}
+function wrapLogHtml(innerHtml) {
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Calibration Log</title>
+  <style>
+    body {
+      background: #1A202C;
+      color: #CBD5E0;
+      font-family: 'Poppins', 'Segoe UI', Roboto, sans-serif;
+      padding: 20px;
+    }
+    #logContainer {
+      background: linear-gradient(135deg, #1A202C, #2D3748, #4A5568);
+      padding: 10px;
+      border-radius: 10px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+      font-size: 1rem;
+      overflow-y: auto;
+    }
+    #logContainer .log {
+      background: rgba(34, 197, 94, 0.15);
+      color: #16A34A;
+    }
+    #logContainer .info {
+      background: rgba(59, 130, 246, 0.2);
+      color: #4299E1;
+    }
+    #logContainer .warning {
+      background: rgba(237, 181, 74, 0.25);
+      color: #ECC94B;
+    }
+    #logContainer .error {
+      background: rgba(245, 101, 101, 0.9);
+      color: #4A0000;
+      font-weight: bold;
+    }
+    #logContainer .infoBold {
+      background: rgba(59, 130, 246, 0.2);
+      color: #3182CE;
+      font-weight: bold;
+    }
+    #logContainer .infoGrey {
+      background: rgba(59, 130, 246, 0.1);
+      color: rgba(99, 179, 237, 0.5);
+    }
+  </style>
+</head>
+<body>
+  <div id="logContainer">
+    ${innerHtml}
+  </div>
+</body>
+</html>`;}
 function vectorDivide(impulseA, impulseB) {
   const complexA = impulseA.map(val => math.complex(val, 0));
   const complexB = impulseB.map(val => math.complex(val, 0));
