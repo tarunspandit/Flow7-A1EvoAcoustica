@@ -3014,6 +3014,7 @@ async function lowVolumeFilters() {
   const response = await fetchSafe('impulse-response?windowed=true&samplerate=' + (xt32 ? '48000' : '6000'), subKey);
   const bytes = Uint8Array.from(atob(response.data), c => c.charCodeAt(0));
   const dataView = new DataView(bytes.buffer);
+  if (!xt32) sampleCount /= 8;
   const filter = new Array(sampleCount);
   for (let i = 0; i < sampleCount; i++) filter[i] = dataView.getFloat32(i * 4, false) * Math.pow(10, ((filterCompensation - 8.99999976158142) / 20));
   deqFilter[0] = filter;
