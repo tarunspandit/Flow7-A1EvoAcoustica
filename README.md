@@ -11,3 +11,5 @@ AVRs must be compatible with MultEQ Mobile app (~2016 onward).
 * [Discussion thread](https://www.avsforum.com/threads/acoustica-latest-and-greatest-from-oca-for-denon-marantz-only.3324025/)
 
 Recommended to follow [Quick Start Guides (Windows/Mac)](https://drive.google.com/drive/folders/1u1-6Im5VX5saUslNFTckukCIYbsgR439)
+
+[LICENSE](./LICENSE)
