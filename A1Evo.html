@@ -2104,7 +2104,7 @@ async function sortBass() {
   }
   
   const sampleCount = xt32 ? 16055 : 4096;
-  const rightWindowWidth = sampleCount / (xt32 ? 48 : 6);
+  const rightWindowWidth = sampleCount / 48;
   await postSafe(`${baseUrl}/${nSpeakers + 6}/ir-windows`, {leftWindowType: "Rectangular", rightWindowType: "Rectangular", leftWindowWidthms: 0, rightWindowWidthms: rightWindowWidth, refTimems: 0, addFDW: false}, "Update processed");
   await postNext("Trim IR to windows", nSpeakers + 6);
   await postDelete(nSpeakers + 6);
@@ -2599,7 +2599,7 @@ async function refResults(){
   await new Promise((resolve) => setTimeout(resolve, speedDelay / 4));}
 async function refFilter(index, orgIndex) {
   const sampleCount = xt32 ? 16321 : (xt ? 4096 : 1024);
-  const rightWindowWidth = sampleCount / (xt32 ? 48 : 6);
+  const rightWindowWidth = sampleCount / 48;
   await postNext('Smooth', index, {smoothing: "Var"});
   const mp = await postNext('Minimum phase version', index, {'include cal': true, 'append lf tail': false, 'append hf tail': false, 'frequency warping': false, 'replicate data': true});
   mpIndex = parseInt(Object.keys(mp.results)[0], 10);
@@ -2632,7 +2632,6 @@ async function refFilter(index, orgIndex) {
   await new Promise(resolve => setTimeout(resolve, speedDelay / 4));
   await postNext('Minimum phase version', mpIndex + 5, {'include cal': true, 'append lf tail': false, 'append hf tail': false, 'frequency warping': false, 'replicate data': true});
   await new Promise(resolve => setTimeout(resolve, speedDelay / 4));
-
   if (allpassQ[orgIndex] != null && allpassQ[orgIndex] != 0) {
     await postSafe(`${baseUrl}/${mpIndex + 6}/filters`, {filters: [{index: 1, enabled: true, isAuto: false, frequency: customCrossover[orgIndex], q: allpassQ[orgIndex], type: 'All pass'}]}, 'Filters set');
     await new Promise(resolve => setTimeout(resolve, speedDelay / 4));
@@ -2640,7 +2639,6 @@ async function refFilter(index, orgIndex) {
     await new Promise(resolve => setTimeout(resolve, speedDelay / 4));
     await postDelete(mpIndex + 6);
   }
-
   await postNext('Arithmetic', [index, mpIndex + 6], {function: "A * B"});
   await new Promise(resolve => setTimeout(resolve, speedDelay / 4));
   for (let i = 5; i >= 2; i--) await postDelete(mpIndex + i);
@@ -3009,7 +3007,7 @@ async function lowVolumeFilters() {
   await new Promise((resolve) => setTimeout(resolve, speedDelay));
   const subKey = parseInt(Object.keys(deqSub.results)[0], 10);
   let sampleCount = xt32 ? 16055 : 4096;
-  let rightWindowWidth = sampleCount / (xt32 ? 48 : 6);
+  let rightWindowWidth = sampleCount / 48;
   await postSafe(`${baseUrl}/${subKey}/ir-windows`, {leftWindowType: "Rectangular", rightWindowType: "Rectangular", leftWindowWidthms: 0, rightWindowWidthms: rightWindowWidth, refTimems: 0, addFDW: false}, "Update processed");
   const response = await fetchSafe('impulse-response?windowed=true&samplerate=' + (xt32 ? '48000' : '6000'), subKey);
   const bytes = Uint8Array.from(atob(response.data), c => c.charCodeAt(0));
@@ -3021,7 +3019,7 @@ async function lowVolumeFilters() {
   await postDelete(subKey);
   let j = 1;
   sampleCount = xt32 ? 16321 : (xt ? 4096 : 1024);
-  rightWindowWidth = sampleCount / (xt32 ? 48 : 6);
+  rightWindowWidth = sampleCount / 48;
   for (let i = nSpeakers + 6; i < filterIndice; i += 2) {
     const name = await fetchREW(i);
     const title = name.title;
