@@ -2124,6 +2124,7 @@ async function sortBass() {
   const response = await fetchSafe('impulse-response?windowed=true&samplerate=' + (xt32 ? '48000' : '6000'), nSpeakers + 3);
   const bytes = Uint8Array.from(atob(response.data), c => c.charCodeAt(0));
   const dataView = new DataView(bytes.buffer);
+  if (!xt32) sampleCount /= 8;
   const filter = new Array(sampleCount);
   for (let i = 0; i < sampleCount; i++) filter[i] = dataView.getFloat32(i * 4, false) * 0.354813398972832 * 10 ** (filterCompensation / 20);
   customFilter[0] = filter;
@@ -2666,6 +2667,7 @@ async function refFilter(index, orgIndex) {
   const response = await fetchSafe('impulse-response?windowed=true&samplerate=' + (xt32 ? '48000' : '6000'), mpIndex + 2);
   const bytes = Uint8Array.from(atob(response.data), c => c.charCodeAt(0));
   const dataView = new DataView(bytes.buffer);
+  if (!xt32) sampleCount /= 8;
   const filter = new Array(sampleCount);
   for (let i = 0; i < sampleCount; i++) {
     const invertFactor = customInvert[orgIndex] ? -1.0 : 1.0;
@@ -3030,6 +3032,7 @@ async function lowVolumeFilters() {
     const response = await fetchSafe('impulse-response?windowed=true&samplerate=' + (xt32 ? '48000' : '6000'), spKey);
     const bytes = Uint8Array.from(atob(response.data), c => c.charCodeAt(0));
     const dataView = new DataView(bytes.buffer);
+    if (!xt32) sampleCount /= 8;
     const filter = new Array(sampleCount);
     for (let i = 0; i < sampleCount; i++) {
       const invertFactor = customInvert[j] ? -1 : 1;
