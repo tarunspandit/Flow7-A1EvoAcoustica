@@ -2103,7 +2103,7 @@ async function sortBass() {
     await postDelete(nSpeakers + 6);
   }
   
-  const sampleCount = xt32 ? 16055 : 4096;
+  let sampleCount = xt32 ? 16055 : 4096;
   const rightWindowWidth = sampleCount / 48;
   await postSafe(`${baseUrl}/${nSpeakers + 6}/ir-windows`, {leftWindowType: "Rectangular", rightWindowType: "Rectangular", leftWindowWidthms: 0, rightWindowWidthms: rightWindowWidth, refTimems: 0, addFDW: false}, "Update processed");
   await postNext("Trim IR to windows", nSpeakers + 6);
@@ -2599,7 +2599,7 @@ async function refResults(){
   await postNext('Smooth', ind, {smoothing: "Var"});
   await new Promise((resolve) => setTimeout(resolve, speedDelay / 4));}
 async function refFilter(index, orgIndex) {
-  const sampleCount = xt32 ? 16321 : (xt ? 4096 : 1024);
+  let sampleCount = xt32 ? 16321 : (xt ? 4096 : 1024);
   const rightWindowWidth = sampleCount / 48;
   await postNext('Smooth', index, {smoothing: "Var"});
   const mp = await postNext('Minimum phase version', index, {'include cal': true, 'append lf tail': false, 'append hf tail': false, 'frequency warping': false, 'replicate data': true});
