@@ -3023,6 +3023,7 @@ async function lowVolumeFilters() {
   let j = 1;
   sampleCount = xt32 ? 16321 : (xt ? 4096 : 1024);
   rightWindowWidth = sampleCount / 48;
+  if (!xt32) sampleCount /= 8;
   for (let i = nSpeakers + 6; i < filterIndice; i += 2) {
     const name = await fetchREW(i);
     const title = name.title;
@@ -3033,7 +3034,6 @@ async function lowVolumeFilters() {
     const response = await fetchSafe('impulse-response?windowed=true&samplerate=' + (xt32 ? '48000' : '6000'), spKey);
     const bytes = Uint8Array.from(atob(response.data), c => c.charCodeAt(0));
     const dataView = new DataView(bytes.buffer);
-    if (!xt32) sampleCount /= 8;
     const filter = new Array(sampleCount);
     for (let i = 0; i < sampleCount; i++) {
       const invertFactor = customInvert[j] ? -1 : 1;
