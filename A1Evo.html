@@ -706,7 +706,7 @@ and noninfringement. Use at your own risk.
   </div></div>
 </script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/14.0.1/math.min.js"></script><script>
 
-const evoVersion = "4.5";
+const evoVersion = "5.0";
 const baseUrl = 'http://localhost:4735/measurements', speedDelay = 255, maxDistanceLimit = 7.35;
 let micCalFile = new Array(16384).fill(0), audioCtx = null;
 let jsonName = 'receiver_config.avr';
@@ -714,7 +714,7 @@ let jsonType = 'avr';
 let jsonContent = null;
 let folderPath, localAppPath = null, ocafileName, sOs = null, isCirrusLogic, isGriffin, freqIndex = [], distFL = null, modelDelayLimit, minDistAccuracy, mSec = [], hardNegative, hardPositive, xt32 = true, xt = false;
 let nSpeakers = null, nSubs = null, subMinTrim = -12, subMaxTrim = 12, lpf4LFE, filterCompensation, targetCurvePath, targetLevel, responseTarget, dataTarget, tcName, rewMaxLimit, isPreProcessed = false, isAutomated;
-let customLevel = [], commandId = [], customDistance = [], customInvert = [], customCrossover = [], customFilter = [], deqFilter = [], subTrim = [], customMinFreq = [], customMaxFreq = [], customMinFreqFR = [], customMaxFreqFR = [], customMargin = [], subAllPassQ = null;
+let customLevel = [], commandId = [], customDistance = [], customInvert = [], customCrossover = [], customFilter = [], deqFilter = [], subTrim = [], customMinFreq = [], customMaxFreq = [], customMinFreqFR = [], customMaxFreqFR = [], customMargin = [], subAllPassQ = null, allpassQ = [];
 const defaultSlope = "L-R4";
 const dbValues = [-12, -15, -18, -20, -25]; //Equal loudness contours
 var subBoost = 0, bassFill = 0, levelLowVol = 2, enableInversion = false, minFreq = 40, maxFreq = 250, minFreqFR = 40, maxFreqFR = 250, subRolloffEnabled = false, subRolloffFreq = null, subRolloffSlope = defaultSlope, lpf4lfeValue = null;
@@ -2103,7 +2103,7 @@ async function sortBass() {
     await postDelete(nSpeakers + 6);
   }
   
-  const sampleCount = xt32 ? 16055 : 512;
+  const sampleCount = xt32 ? 16055 : 4096;
   const rightWindowWidth = sampleCount / (xt32 ? 48 : 6);
   await postSafe(`${baseUrl}/${nSpeakers + 6}/ir-windows`, {leftWindowType: "Rectangular", rightWindowType: "Rectangular", leftWindowWidthms: 0, rightWindowWidthms: rightWindowWidth, refTimems: 0, addFDW: false}, "Update processed");
   await postNext("Trim IR to windows", nSpeakers + 6);
@@ -2191,35 +2191,34 @@ async function alignFronts() {
   const delayStep = 0.00003333333333333333, delayValues = [];
   for (let ts = msNeg; ts <= msPos; ts += delayStep) delayValues.push(ts);
   const inversionConfigs = [{subInverted: false}, {subInverted: true}];
-  const apfQValues = [0, 0.577, 0.7071, 1, 2]; // 0 means APF disabled
-  const subAmplitudeScalingFactor = 1.5; //Assuming mono bass
+  const apfQValues = [0, 0.5773502692, 0.7071067812, 1.0, 1.414213562];
+  const subAmplitudeScalingFactor = 2; //Assuming mono bass
   console.info(`Using subwoofer amplitude scaling factor: ${subAmplitudeScalingFactor.toFixed(1)} (${(20 * Math.log10(subAmplitudeScalingFactor)).toFixed(3)} dB)`);
   console.info("Brute force searching optimal configuration, please be patient...");
-  const optimizationStartFreq = 16, optimizationEndFreq = 350;
+  const optimizationStartFreq = 20, optimizationEndFreq = 320;
   let bestOverallSumPower = -Infinity, bestOverallConfig = null;
   const freqResults = [];
   for (const freq of xoCandidates) {
-      let speaker1_postXO, speaker2_postXO;
-      try {
-        [speaker1_postXO, speaker2_postXO] = await Promise.all([fetchResponse(sp1, freq, false, true, 0), fetchResponse(sp2, freq, false, true, 0)]);
-        if (!speaker1_postXO?.magnitude || !speaker2_postXO?.magnitude || speaker1_postXO.ppo <= 0 || speaker2_postXO.ppo <= 0) throw new Error("Incomplete post XO data.");
-      } catch (e) {
-        console.error(`Error fetching post XO responses for ${freq}Hz:`, e);
-        continue;
-      }
-      const spk1Complex = [];
-      for (let i = 0; i < speaker1_postXO.magnitude.length; i++) {
-          const amp = dB2Amp(speaker1_postXO.magnitude[i]);
-          const phase = toRad(speaker1_postXO.phase[i]);
-          spk1Complex.push({real: amp * Math.cos(phase), imag: amp * Math.sin(phase)});
-      }
-      const spk2Complex = [];
-      for (let i = 0; i < speaker2_postXO.magnitude.length; i++) {
-          const amp = dB2Amp(speaker2_postXO.magnitude[i]);
-          const phase = toRad(speaker2_postXO.phase[i]);
-          spk2Complex.push({real: amp * Math.cos(phase), imag: amp * Math.sin(phase)});
-      }
-      for (const currentQ of apfQValues) {
+    let speaker1_postXO, speaker2_postXO;
+    try {
+      [speaker1_postXO, speaker2_postXO] = await Promise.all([fetchResponse(sp1, freq, false, true, 0), fetchResponse(sp2, freq, false, true, 0)]);
+    } catch (e) {
+      console.error(`Error fetching post XO responses for ${freq}Hz:`, e);
+      continue;
+    }
+    const spk1Complex = [];
+    for (let i = 0; i < speaker1_postXO.magnitude.length; i++) {
+      const amp = dB2Amp(speaker1_postXO.magnitude[i]);
+      const phase = toRad(speaker1_postXO.phase[i]);
+      spk1Complex.push({real: amp * Math.cos(phase), imag: amp * Math.sin(phase)});
+    }
+    const spk2Complex = [];
+    for (let i = 0; i < speaker2_postXO.magnitude.length; i++) {
+      const amp = dB2Amp(speaker2_postXO.magnitude[i]);
+      const phase = toRad(speaker2_postXO.phase[i]);
+      spk2Complex.push({real: amp * Math.cos(phase), imag: amp * Math.sin(phase)});
+    }
+    for (const currentQ of apfQValues) {
       let sub_postXO;
       sub_postXO = await fetchResponse(sw1, freq, true, true, currentQ);
       const subRawAmpPhase = [];
@@ -2248,9 +2247,7 @@ async function alignFronts() {
             validPoints++;
           }
           if (validPoints > 0 && currentSumPower > bestConfigForFreq.sumPower) {
-            bestConfigForFreq = {
-              sumPower: currentSumPower, ts, subInverted: config.subInverted, validPoints, apfQ: currentQ
-            };
+            bestConfigForFreq = {sumPower: currentSumPower, ts, subInverted: config.subInverted, validPoints, apfQ: currentQ};
           }
         }
       }
@@ -2270,13 +2267,27 @@ async function alignFronts() {
     }
   }
   let maxOverallMagEstimate = -Infinity;
-  for (const result of freqResults) {
-    if (result.overallMagEstimate > maxOverallMagEstimate) maxOverallMagEstimate = result.overallMagEstimate;
-  }
+  for (const result of freqResults) {if (result.overallMagEstimate > maxOverallMagEstimate) maxOverallMagEstimate = result.overallMagEstimate;}
   console.log("Front speakers crossover performance analysis:");
-  //freqResults.sort((a, b) => b.overallMagEstimate - a.overallMagEstimate);
-  freqResults.sort((a, b) => a.freq - b.freq);
-  for (const result of freqResults) console.log(`${result.freq}Hz => Estimated total sound pressure: ${result.overallMagEstimate.toFixed(4)}dB | Required subwoofer delay: ${(result.config.ts * 1000).toFixed(2)}ms | Sub requires inversion: ${result.config.subInverted} | Allpass Q: ${result.config.apfQ}`);
+  const bestResultsByFreq = new Map();
+  for (const currentResult of freqResults) {
+    const existingBest = bestResultsByFreq.get(currentResult.freq);
+    if (!existingBest || currentResult.overallMagEstimate > existingBest.overallMagEstimate) bestResultsByFreq.set(currentResult.freq, currentResult);
+  }
+  const uniqueBestResults = Array.from(bestResultsByFreq.values());
+  uniqueBestResults.sort((a, b) => a.freq - b.freq);
+  for (const result of uniqueBestResults) {
+    console.log(
+      `${result.freq}Hz => Est. SPL: ${result.overallMagEstimate.toFixed(2)}dB | ` + // Using toFixed(2) for dB is common
+      `Delay: ${(result.config.ts * 1000).toFixed(2)}ms | ` +
+      `Invert: ${result.config.subInverted} | ` +
+      `APF Q: ${result.config.apfQ}`
+    );
+  }
+  if (uniqueBestResults.length > 0) {
+    let overallBestResult = uniqueBestResults[0];
+    for (let i = 1; i < uniqueBestResults.length; i++) {if (uniqueBestResults[i].overallMagEstimate > overallBestResult.overallMagEstimate) overallBestResult = uniqueBestResults[i];}
+  }
   if (bestOverallConfig) {
     console.infoBold(`Optimal front speaker configuration selected => Xover: ${bestOverallConfig.freq}Hz, Subwoofer applied delay: ${(bestOverallConfig.ts * 1000).toFixed(4)}ms, Subwoofer inverted: ${bestOverallConfig.subInverted}, Allpass filter Q: ${bestOverallConfig.apfQ}`);
     customCrossover[sp1] = bestOverallConfig.freq;
@@ -2318,26 +2329,22 @@ async function alignFronts() {
   for (let i = 1; i <= nSpeakers; i++) console.log(`${commandId[i]}: ${customCrossover[i]}Hz, polarity inverted? ${customInvert[i]}`);
   for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) console.log(`${commandId[i]}, polarity inverted? ${customInvert[i]}`);
   if (customInvert.some(Boolean)) console.warn("Polarity inversions will be applied automatically by A1 Evo Acoustica!");}
+function b64ToFloat32ArrayBE(base64) {
+  const binaryStr = atob(base64);
+  const len = binaryStr.length;
+  if (len % 4 !== 0) console.warn('b64ToFloat32ArrayBE: Base64 decoded length is not a multiple of 4. Result may be truncated or incorrect.');
+  const buffer = new ArrayBuffer(len);
+  const uint8 = new Uint8Array(buffer);
+  for (let i = 0; i < len; i++) uint8[i] = binaryStr.charCodeAt(i);
+  const floatCount = Math.floor(len / 4);
+  const float32Array = new Float32Array(floatCount);
+  const dataView = new DataView(buffer);
+  for (let i = 0; i < floatCount; i++) float32Array[i] = dataView.getFloat32(i * 4, false);
+  return float32Array;}
 async function fetchResponse(index, xoFreq, isSub = false, usePPO = false, allpassQ = 0) {
-  const base64ToFloat32ArrayBigEndian = (base64) => {
-    const binaryStr = atob(base64);
-    const len = binaryStr.length;
-    const buffer = new ArrayBuffer(len);
-    const uint8 = new Uint8Array(buffer);
-    for (var i = 0; i < len; i++) uint8[i] = binaryStr.charCodeAt(i);
-      const swappedBuffer = new ArrayBuffer(len);
-      const src = new Uint8Array(buffer);
-      const dst = new Uint8Array(swappedBuffer);
-      for (var i = 0; i < len; i += 4) {
-        dst[i] = src[i + 3];
-        dst[i + 1] = src[i + 2];
-        dst[i + 2] = src[i + 1];
-        dst[i + 3] = src[i];
-      }
-      return new Float32Array(swappedBuffer);
-  };
+  
   const filters = [{
-    index: 21,
+    index: 21, // TODO: Consider making these constants or configurable
     enabled: true,
     isAuto: false,
     frequency: xoFreq,
@@ -2347,7 +2354,7 @@ async function fetchResponse(index, xoFreq, isSub = false, usePPO = false, allpa
   }];
   if (allpassQ !== 0) {
     filters.push({
-      index: 22,
+      index: 22, // TODO: Consider making this constant or configurable
       enabled: true,
       isAuto: false,
       frequency: xoFreq,
@@ -2357,118 +2364,216 @@ async function fetchResponse(index, xoFreq, isSub = false, usePPO = false, allpa
   }
   await postSafe(`${baseUrl}/${index}/filters`, { filters }, 'Filters set');
   let url = `${baseUrl}/${index}/eq/frequency-response?unit=SPL`;
-  if (usePPO) {url += '&smoothing=1%2F48&ppo=96';} else {url += '&smoothing=None';}
+  if (usePPO) { // This is always true in optimizeSpeakers context
+    url += '&smoothing=1%2F48&ppo=96';
+  } else {
+    url += '&smoothing=None';
+  }
   const filterResponse = await fetch(url);
   const response = await filterResponse.json();
   if (usePPO) {
-    const {startFreq, ppo, phase, magnitude} = response;
-    return {startFreq, ppo, phase: base64ToFloat32ArrayBigEndian(phase), magnitude: base64ToFloat32ArrayBigEndian(magnitude)};
+    const { startFreq, ppo, phase, magnitude } = response;
+    return {
+      startFreq,
+      ppo,
+      phase: b64ToFloat32ArrayBE(phase),
+      magnitude: b64ToFloat32ArrayBE(magnitude)
+    };
   } else {
-    const {startFreq, freqStep, phase, magnitude} = response;
-    return {startFreq, freqStep, phase: base64ToFloat32ArrayBigEndian(phase), magnitude: base64ToFloat32ArrayBigEndian(magnitude)};
+      const { startFreq, freqStep, phase, magnitude } = response;
+      return {
+        startFreq,
+        freqStep,
+        phase: b64ToFloat32ArrayBE(phase),
+        magnitude: b64ToFloat32ArrayBE(magnitude)
+    };
   }}
-async function optimizeSpeakers(sp1, sp2 = null, targetData) {
+async function optimizeSpeakers(sp1, sp2 = null) {
+  const apfQValues = [0, 0.5773502692, 0.7071067812, 1.0, 1.414213562];
   const isPair = sp2 !== null;
   const sw1 = nSpeakers + 1;
-  const speakers = isPair ? [sp1, sp2, sw1] : [sp1, sw1];
-  const ppoIndex = (targetFreq, startFreq, ppo) => {
-    if (targetFreq <= 0 || startFreq <= 0 || ppo <= 0 || !isFinite(targetFreq) || !isFinite(startFreq) || !isFinite(ppo)) {
-      console.warn(`Invalid input to ppoIndex: ${targetFreq}, ${startFreq}, ${ppo}`);
-      return NaN;
-    }
-    return Math.log2(targetFreq / startFreq) * ppo;
-  };
+  const speakerIndices = isPair ? [sp1, sp2, sw1] : [sp1, sw1];
   const dB2Amp = dB => Math.pow(10, dB / 20);
   const toRad = deg => deg * Math.PI / 180;
-  const MIN_AMP_SQ = 1e-18, startF = 20, endF = 350;
-  const weightFreqs = [20, 25, 31.5, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500]; 
-  const weightValues = [0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 0.95, 0.9, 0.85, 0.8];// ISO-226 2023 equal loudness weightings
+  const MIN_AMP_SQ = 1e-18;
+  const ANALYSIS_START_F = 20;
+  const ANALYSIS_END_F = 350;
+  const weightFreqs = [20, 25, 31.5, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500];
+  const weightValues = [0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 0.95, 0.9, 0.85, 0.8];
   const weightSlopes = weightValues.map((v, i, a) => {
     if (i === 0) return (a[1] - v) / (weightFreqs[1] - weightFreqs[0]);
     if (i === a.length - 1) return (v - a[i - 1]) / (weightFreqs[i] - weightFreqs[i - 1]);
     return (a[i + 1] - a[i - 1]) / (weightFreqs[i + 1] - weightFreqs[i - 1]);
   });
   const cubicInterpolate = (x, x0, x1, y0, y1, m0, m1) => {
-    const t = (x - x0) / (x1 - x0), t2 = t * t, t3 = t2 * t;
-    return (2 * t3 - 3 * t2 + 1) * y0 + (t3 - 2 * t2 + t) * m0 * (x1 - x0) + (-2 * t3 + 3 * t2) * y1 + (t3 - t2) * m1 * (x1 - x0);
+    const dx = (x1 - x0);
+    if (dx === 0) return y0;
+    const t = (x - x0) / dx;
+    const t2 = t * t;
+    const t3 = t2 * t;
+    return (2 * t3 - 3 * t2 + 1) * y0 + (t3 - 2 * t2 + t) * m0 * dx + (-2 * t3 + 3 * t2) * y1 + (t3 - t2) * m1 * dx;
   };
-  const getWeighting = f => {
+  const getWeightingAtFrequency = (f) => {
     if (f <= weightFreqs[0]) return weightValues[0];
     if (f >= weightFreqs[weightFreqs.length - 1]) return weightValues[weightValues.length - 1];
-    const idx = weightFreqs.findIndex((v, i) => f < weightFreqs[i + 1]);
+    const idx = weightFreqs.findIndex((wf, i, arr) => i < arr.length -1 && f < arr[i+1]);
+    if (idx === -1) return weightValues[weightValues.length - 1];
     return cubicInterpolate(f, weightFreqs[idx], weightFreqs[idx + 1], weightValues[idx], weightValues[idx + 1], weightSlopes[idx], weightSlopes[idx + 1]);
   };
   console.infoBold(`Optimal crossover frequency analysis for speaker${isPair ? ` pair ${commandId[sp1]} + ${commandId[sp2]}` : ` ${commandId[sp1]}`} with auditory perception weighting:`);
-  await Promise.all(speakers.map(cleanFilters));
+  await Promise.all(speakerIndices.map(sIdx => cleanFilters(sIdx)));
   const targetResp = await fetch(`${baseUrl}/${nSpeakers + 2}/frequency-response?smoothing=1%2F48&ppo=96`).then(r => r.json());
-  const base64ToF32 = b64 => {
-    const bin = atob(b64), buf = new ArrayBuffer(bin.length), v = new Uint8Array(buf);
-    for (let i = 0; i < bin.length; i++) v[i] = bin.charCodeAt(i);
-    const swap = new Uint8Array(buf.byteLength);
-    for (let i = 0; i < v.length; i += 4)
-      [swap[i], swap[i + 1], swap[i + 2], swap[i + 3]] = [v[i + 3], v[i + 2], v[i + 1], v[i]];
-    return new Float32Array(swap.buffer);
-  };
-  const targetMag = base64ToF32(targetResp.magnitude);
-  const targetF = i => targetResp.startFreq * Math.pow(2, i / targetResp.ppo);
-  const isDolby = ((typeof xt === 'boolean' && !xt && typeof xt32 === 'boolean' && !xt32) || ['BDL', 'FDL', 'SDL'].includes(commandId[sp1]));
-  const xoCandidates = freqIndex.filter(f =>
-    f >= (isDolby ? Math.max(minFreq ?? 40, 100) : (minFreq ?? 40)) && f <= (maxFreq ?? 250)
-  );
-  let bestWorstDip = Infinity, bestWorstXO = null, bestSumDip = Infinity, bestSumXO = null;
-  for (const freq of xoCandidates) {
-    let spk1, spk2 = null, sub;
-    try {
-      const fetchList = isPair ? [sp1, sp2, sw1] : [sp1, sw1];
-      const responses = await Promise.all(fetchList.map(s => fetchResponse(s, freq, s === sw1, true)));
-      if (isPair) {
-        [spk1, spk2, sub] = responses;
-      } else {
-        [spk1, sub] = responses;
+  const targetMagArray = b64ToFloat32ArrayBE(targetResp.magnitude);
+  const precomputedTargetInfo = [];
+  if (targetResp && targetResp.ppo > 0) {
+    for (let i = 0; i < targetMagArray.length; i++) {
+      const f = targetResp.startFreq * Math.pow(2, i / targetResp.ppo);
+      if (f < ANALYSIS_START_F || f > ANALYSIS_END_F) {
+          precomputedTargetInfo.push(null); continue;
       }
-      if (!spk1?.magnitude || !sub?.magnitude || (isPair && !spk2?.magnitude) || !spk1?.ppo || !sub?.ppo || (isPair && !spk2?.ppo) || spk1.ppo <= 0 || sub.ppo <= 0 || (isPair && spk2.ppo <= 0)) throw new Error(`Invalid/incomplete PPO response for ${freq}Hz.`);
+      precomputedTargetInfo.push({ f, weight: getWeightingAtFrequency(f), targetMagValue: targetMagArray[i], targetIndex: i });
+    }
+  } else {
+    console.error("Target response PPO is invalid or missing. Cannot proceed."); return;
+  }
+  const isDolby = (['BDL', 'FDL', 'SDL'].includes(commandId[sp1]));
+  const xoCandidates = freqIndex.filter(f => f >= (isDolby ? Math.max(minFreq ?? 40, 100) : (minFreq ?? 40)) && f <= (maxFreq ?? 250));
+  let bestWorstDip = Infinity, bestWorstXO = null, bestSumDip = Infinity, bestSumXO = null;
+  let bestWorstq1 = null, bestWorstq2 = null, bestSumAP1 = null, bestSumAP2 = null;
+  const getPpoIndexingConstants = (speakerResponse, targetResponsePPO) => {
+    if (!speakerResponse?.startFreq || !speakerResponse?.ppo || speakerResponse.ppo <= 0 || !targetResponsePPO || targetResponsePPO <= 0) {
+        return { A: NaN, B: NaN, magLength: 0, phaseLength: 0, isValid: false };
+    }
+    const A = Math.log2(targetResp.startFreq / speakerResponse.startFreq) * speakerResponse.ppo;
+    const B = speakerResponse.ppo / targetResponsePPO;
+    return { A, B, magLength: speakerResponse.magnitude.length, phaseLength: speakerResponse.phase.length, isValid: true };
+  };
+  const calcDip = (speakerResponseData, subwooferResponseData, ppoConstsSpk, ppoConstsSub) => {
+    let totalWeightedDip = 0; let validPoints = 0;
+    if (!ppoConstsSpk.isValid || !ppoConstsSub.isValid) return Infinity;
+    for (const targetPoint of precomputedTargetInfo) {
+      if (!targetPoint) continue;
+      const { weight, targetMagValue, targetIndex } = targetPoint;
+      const rawIdxSpk = ppoConstsSpk.A + targetIndex * ppoConstsSpk.B;
+      const idxSpk = Math.min(Math.max(Math.round(rawIdxSpk), 0), ppoConstsSpk.magLength - 1);
+      const rawIdxSub = ppoConstsSub.A + targetIndex * ppoConstsSub.B;
+      const idxSub = Math.min(Math.max(Math.round(rawIdxSub), 0), ppoConstsSub.magLength - 1);
+      if (idxSpk >= ppoConstsSpk.phaseLength || idxSub >= ppoConstsSub.phaseLength || isNaN(speakerResponseData.magnitude[idxSpk]) || isNaN(speakerResponseData.phase[idxSpk]) || isNaN(subwooferResponseData.magnitude[idxSub]) || isNaN(subwooferResponseData.phase[idxSub])) continue;
+      const spkAmp = dB2Amp(speakerResponseData.magnitude[idxSpk]); const spkPhaseRad = toRad(speakerResponseData.phase[idxSpk]);
+      const subAmp = dB2Amp(subwooferResponseData.magnitude[idxSub]); const subPhaseRad = toRad(subwooferResponseData.phase[idxSub]);
+      const realSum = spkAmp * Math.cos(spkPhaseRad) + subAmp * Math.cos(subPhaseRad);
+      const imagSum = spkAmp * Math.sin(spkPhaseRad) + subAmp * Math.sin(subPhaseRad);
+      const powerSum = realSum * realSum + imagSum * imagSum;
+      const combinedSPL = powerSum > MIN_AMP_SQ ? 10 * Math.log10(powerSum) : -180;
+      const delta = targetMagValue - combinedSPL;
+      if (delta > 0) totalWeightedDip += delta * weight;
+      validPoints++;
+    }
+    return validPoints > 0 ? totalWeightedDip / validPoints : Infinity;
+  };
+  for (const freq of xoCandidates) {
+    let subResponse;
+    try {
+      subResponse = await fetchResponse(sw1, freq, true, true, 0);
     } catch (e) {
-      console.error(`Error fetching PPO responses for ${freq}Hz:`, e.message);
+      console.error(`Error fetching/validating subwoofer for ${freq}Hz: ${e.message}. Skipping this frequency.`);
       continue;
     }
-    const calcDip = (speaker, subwoofer) => {
-      let dip = 0, valid = 0;
-      for (var i = 0; i < targetMag.length; i++) {
-        const f = targetF(i);
-        if (f < startF || f > endF) continue;
-        const idxSpk = Math.min(Math.max(Math.round(ppoIndex(f, speaker.startFreq, speaker.ppo)), 0), speaker.magnitude.length - 1);
-        const idxSub = Math.min(Math.max(Math.round(ppoIndex(f, subwoofer.startFreq, subwoofer.ppo)), 0), subwoofer.magnitude.length - 1);
-        const spkAmp = dB2Amp(speaker.magnitude[idxSpk]);
-        const spkPhase = toRad(speaker.phase[idxSpk]);
-        const subAmp = dB2Amp(subwoofer.magnitude[idxSub]);
-        const subPhase = toRad(subwoofer.phase[idxSub]);
-        const real = spkAmp * Math.cos(spkPhase) + subAmp * Math.cos(subPhase);
-        const imag = spkAmp * Math.sin(spkPhase) + subAmp * Math.sin(subPhase);
-        const power = real * real + imag * imag;
-        const spl = power > MIN_AMP_SQ ? 10 * Math.log10(power) : -180;
-        const delta = targetMag[i] - spl;
-        if (delta > 0) dip += delta * getWeighting(f);
-        valid++;
-      }
-      return valid ? dip / valid : Infinity;
-    };
-    const dip1 = calcDip(spk1, sub);
-    const dip2 = isPair ? calcDip(spk2, sub) : 0;
-    const worstDip = isPair ? Math.max(dip1, dip2) : dip1;
-    const sumDip = isPair ? dip1 + dip2 : dip1;
-    if (isPair) {
-      console.info(`Crossover: ${freq}Hz -> total dips below target (pair worst): ${(-worstDip).toFixed(2)}dB, total dips below target (pair average): ${(-sumDip / 2).toFixed(2)}dB`);
-    } else {
-      console.info(`Crossover: ${freq}Hz -> total dips below target: ${(-sumDip).toFixed(2)}dB`);
+    const ppoConstsSub = getPpoIndexingConstants(subResponse, targetResp.ppo);
+    if (!ppoConstsSub.isValid) {
+      console.error(`Failed PPO constants for subwoofer at ${freq}Hz. Skipping this frequency.`);
+      continue;
     }
-    if (worstDip < bestWorstDip) { bestWorstDip = worstDip; bestWorstXO = freq; }
-    if (sumDip < bestSumDip) { bestSumDip = sumDip; bestSumXO = freq; }
+    let currentFreq_bestWorstDipVal = Infinity;
+    let currentFreq_bestWorstDipQ1 = null;
+    let currentFreq_bestWorstDipQ2 = null;
+    let currentFreq_bestSumDipVal = Infinity;
+    let currentFreq_bestSumDipQ1 = null;
+    let currentFreq_bestSumDipQ2 = null;
+    if (isPair) {
+      for (const q1 of apfQValues) {
+        for (const q2 of apfQValues) {
+          try {
+            const [spk1Response, spk2Response] = await Promise.all([fetchResponse(sp1, freq, false, true, q1), fetchResponse(sp2, freq, false, true, q2)]);
+            const ppoConstsSpk1 = getPpoIndexingConstants(spk1Response, targetResp.ppo);
+            const ppoConstsSpk2 = getPpoIndexingConstants(spk2Response, targetResp.ppo);
+            const dip1 = calcDip(spk1Response, subResponse, ppoConstsSpk1, ppoConstsSub);
+            const dip2 = calcDip(spk2Response, subResponse, ppoConstsSpk2, ppoConstsSub);
+            const worstDip = Math.max(dip1, dip2);
+            const sumDip = dip1 + dip2;
+            if (worstDip < currentFreq_bestWorstDipVal) {
+              currentFreq_bestWorstDipVal = worstDip;
+              currentFreq_bestWorstDipQ1 = q1;
+              currentFreq_bestWorstDipQ2 = q2;
+            }
+            if (sumDip < currentFreq_bestSumDipVal) {
+              currentFreq_bestSumDipVal = sumDip;
+              currentFreq_bestSumDipQ1 = q1;
+              currentFreq_bestSumDipQ2 = q2;
+            }
+            if (worstDip < bestWorstDip) {
+              bestWorstDip = worstDip; bestWorstXO = freq; bestWorstq1 = q1; bestWorstq2 = q2;
+            }
+            if (sumDip < bestSumDip) {
+              bestSumDip = sumDip; bestSumXO = freq; bestSumAP1 = q1; bestSumAP2 = q2;
+            }
+          } catch (e) {
+              console.warn(`Skipping ${freq}Hz, Q1=${q1}, Q2=${q2} due to error: ${e.message}`);
+          }
+        }
+      }
+    } else {
+      for (const q1 of apfQValues) {
+        try {
+          const spk1Response = await fetchResponse(sp1, freq, false, true, q1);
+          const ppoConstsSpk1 = getPpoIndexingConstants(spk1Response, targetResp.ppo);
+          const dip1 = calcDip(spk1Response, subResponse, ppoConstsSpk1, ppoConstsSub);
+          if (dip1 < currentFreq_bestWorstDipVal) {
+            currentFreq_bestWorstDipVal = dip1;
+            currentFreq_bestWorstDipQ1 = q1;
+          }
+          if (dip1 < currentFreq_bestSumDipVal) {
+            currentFreq_bestSumDipVal = dip1;
+            currentFreq_bestSumDipQ1 = q1;
+          }
+          if (dip1 < bestWorstDip) {
+            bestWorstDip = dip1; bestWorstXO = freq; bestWorstq1 = q1; bestWorstq2 = null;
+          }
+          if (dip1 < bestSumDip) {
+            bestSumDip = dip1; bestSumXO = freq; bestSumAP1 = q1; bestSumAP2 = null;
+          }
+        } catch (e) {
+          console.warn(`Skipping ${freq}Hz, Q1=${q1} due to error: ${e.message}`);
+        }
+      }
+    }
+    if (currentFreq_bestWorstDipVal !== Infinity) {
+      if (isPair) {
+        console.info(
+          `Freq: ${freq}Hz - Best for this freq: ` +
+          `WorstDip ${(-currentFreq_bestWorstDipVal).toFixed(2)}dB (Q1: ${currentFreq_bestWorstDipQ1?.toFixed(4)}, Q2: ${currentFreq_bestWorstDipQ2?.toFixed(4)}); ` +
+          `AvgSumDip ${(-currentFreq_bestSumDipVal / 2).toFixed(2)}dB (Q1: ${currentFreq_bestSumDipQ1?.toFixed(4)}, Q2: ${currentFreq_bestSumDipQ2?.toFixed(4)})`
+        );
+      } else {
+          console.info(
+            `Freq: ${freq}Hz - Best for this freq: ` +
+            `Dip ${(-currentFreq_bestWorstDipVal).toFixed(2)}dB (Q: ${currentFreq_bestWorstDipQ1?.toFixed(4)})`
+          );
+      }
+    } else {
+      console.info(`Freq: ${freq}Hz - No valid dip calculations found or all attempts failed.`);
+    }
   }
-  console.info(`Best XOver (WorstDip): ${bestWorstXO}Hz with ${bestWorstDip.toFixed(2)}dB`);
-  console.info(`Best XOver (SumDip): ${bestSumXO}Hz with ${bestSumDip.toFixed(2)}dB`);
-  customCrossover[sp1] = bestWorstXO;
-  console.info(`  >> Assigned Crossover frequency: ${customCrossover[sp1]}Hz to ${isPair ? `${commandId[sp1]} and ${commandId[sp2]} (pair)` : commandId[sp1]}`);
-  if (isPair) customCrossover[sp2] = customCrossover[sp1];}
+  console.info(`Overall Best XOver (WorstDip criterion): ${bestWorstXO}Hz, Q1: ${bestWorstq1?.toFixed(4)}${isPair && bestWorstq2 !== null ? `, Q2: ${bestWorstq2.toFixed(4)}` : ''}. Dip value: ${bestWorstDip.toFixed(2)} (corresponds to ${(-bestWorstDip).toFixed(2)}dB below target)`);
+  console.info(`Overall Best XOver (SumDip criterion): ${bestSumXO}Hz, Q1: ${bestSumAP1?.toFixed(4)}${isPair && bestSumAP2 !== null ? `, Q2: ${bestSumAP2.toFixed(4)}` : ''}. Summed dip value: ${bestSumDip.toFixed(2)} (corresponds to ${isPair ? (-bestSumDip/2).toFixed(2) + 'dB avg below target' : (-bestSumDip).toFixed(2) + 'dB below target'})`);
+  customCrossover[sp1] = bestWorstXO; 
+  allpassQ[sp1] = bestWorstq1;
+  console.infoBold(`  >> Assigned Crossover: ${customCrossover[sp1]}Hz, AllpassQ1: ${allpassQ[sp1]?.toFixed(4)} to ${commandId[sp1]}`);
+  if (isPair) {
+    customCrossover[sp2] = bestWorstXO;
+    allpassQ[sp2] = bestWorstq2;
+    console.infoBold(`  >> Assigned Crossover: ${customCrossover[sp2]}Hz, AllpassQ2: ${allpassQ[sp2]?.toFixed(4)} to ${commandId[sp2]}`);
+  }}
 async function refResults(){
   console.info(`Generating magnitude and phase correction filters for normal listening mode [Flat]...`);
   for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {if (customInvert[i]) {customFilter[i] = customFilter[0].map((value) => -value);} else {customFilter[i] = customFilter[0];}}
@@ -2493,7 +2598,7 @@ async function refResults(){
   await postNext('Smooth', ind, {smoothing: "Var"});
   await new Promise((resolve) => setTimeout(resolve, speedDelay / 4));}
 async function refFilter(index, orgIndex) {
-  const sampleCount = xt32 ? 16321 : (xt ? 512 : 128);
+  const sampleCount = xt32 ? 16321 : (xt ? 4096 : 1024);
   const rightWindowWidth = sampleCount / (xt32 ? 48 : 6);
   await postNext('Smooth', index, {smoothing: "Var"});
   const mp = await postNext('Minimum phase version', index, {'include cal': true, 'append lf tail': false, 'append hf tail': false, 'frequency warping': false, 'replicate data': true});
@@ -2527,6 +2632,15 @@ async function refFilter(index, orgIndex) {
   await new Promise(resolve => setTimeout(resolve, speedDelay / 4));
   await postNext('Minimum phase version', mpIndex + 5, {'include cal': true, 'append lf tail': false, 'append hf tail': false, 'frequency warping': false, 'replicate data': true});
   await new Promise(resolve => setTimeout(resolve, speedDelay / 4));
+
+  if (allpassQ[orgIndex] != null && allpassQ[orgIndex] != 0) {
+    await postSafe(`${baseUrl}/${mpIndex + 6}/filters`, {filters: [{index: 1, enabled: true, isAuto: false, frequency: customCrossover[orgIndex], q: allpassQ[orgIndex], type: 'All pass'}]}, 'Filters set');
+    await new Promise(resolve => setTimeout(resolve, speedDelay / 4));
+    await postNext('Generate predicted measurement', mpIndex + 6);
+    await new Promise(resolve => setTimeout(resolve, speedDelay / 4));
+    await postDelete(mpIndex + 6);
+  }
+
   await postNext('Arithmetic', [index, mpIndex + 6], {function: "A * B"});
   await new Promise(resolve => setTimeout(resolve, speedDelay / 4));
   for (let i = 5; i >= 2; i--) await postDelete(mpIndex + i);
@@ -2661,10 +2775,16 @@ async function multipleSubs(indices) {
   let allResponses = await fetchREW();
   let nTotal = Object.keys(allResponses).length;
   await fetchREW(nTotal, 'PUT', {title: "SW1o"});
-  if (sOs != 300) {
-    const adjustSubsVolume = - 20 * Math.log10(nSubs);
+  /*if (sOs !== 300) {
+    let adjustSubsVolume = 0;
+    if (nSubs === 3) {
+      adjustSubsVolume = -20 * Math.log10(Math.sqrt(2 / 3));
+    } else if (nSubs === 4) {
+      adjustSubsVolume = -20 * Math.log10(Math.sqrt(2 / 4));
+    }
     await postNext('Add SPL offset', nTotal, {offset: adjustSubsVolume});
-  }
+  }*/
+  //await postNext('Add SPL offset', nTotal, {offset: 1.4});// weird offset required
   console.info(`Subwoofers ${Array.from({length: nSubs}, (_, i) => `SW${i+1}`).join(', ').replace(/, ([^,]*)$/, ' and $1')} time aligned, level matched and summed.`);
   for (let i = nTotal - 1; i > nSpeakers; i--) await postDelete(i);
   bestmSecs.forEach((ms, k) => {
@@ -2888,7 +3008,7 @@ async function lowVolumeFilters() {
   const deqSub = await postNext('Arithmetic', [nSpeakers + 3, filterIndice], {function: "A * B"});
   await new Promise((resolve) => setTimeout(resolve, speedDelay));
   const subKey = parseInt(Object.keys(deqSub.results)[0], 10);
-  let sampleCount = xt32 ? 16055 : 512;
+  let sampleCount = xt32 ? 16055 : 4096;
   let rightWindowWidth = sampleCount / (xt32 ? 48 : 6);
   await postSafe(`${baseUrl}/${subKey}/ir-windows`, {leftWindowType: "Rectangular", rightWindowType: "Rectangular", leftWindowWidthms: 0, rightWindowWidthms: rightWindowWidth, refTimems: 0, addFDW: false}, "Update processed");
   const response = await fetchSafe('impulse-response?windowed=true&samplerate=' + (xt32 ? '48000' : '6000'), subKey);
@@ -2900,7 +3020,7 @@ async function lowVolumeFilters() {
   for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {if (customInvert[i]) {deqFilter[i] = deqFilter[0].map((value) => -value);} else {deqFilter[i] = deqFilter[0];}}
   await postDelete(subKey);
   let j = 1;
-  sampleCount = xt32 ? 16321 : (xt ? 512 : 128);
+  sampleCount = xt32 ? 16321 : (xt ? 4096 : 1024);
   rightWindowWidth = sampleCount / (xt32 ? 48 : 6);
   for (let i = nSpeakers + 6; i < filterIndice; i += 2) {
     const name = await fetchREW(i);
@@ -3336,10 +3456,10 @@ function readContents() {
         xt32 = false;
         xt = (jsonContent.enMultEQType == 1);
         console.log(`MultEQ Type :: ${jsonContent.enMultEQType === 1 ?
-          'XT (sub filter: 512 active FIR taps, speaker filter: 512 active FIR taps :: 6kHz)' :
-          'Basic (sub filter: active 512 FIR taps, speaker filter: 128 active FIR taps :: 6kHz)'}`);
+          'XT (sub filter: 512 active FIR taps, speaker filter: 512 active FIR taps @ 6kHz)' :
+          'Basic (sub filter: active 512 FIR taps, speaker filter: 128 active FIR taps @ 6kHz)'}`);
     } else {
-        console.log('MultEQ Type:: XT32 (subwoofer filters: 687 active FIR taps out of 704 total, speaker filters: 1003 active FIR taps out of 1024 total :: 48kHz / multiRate)');
+        console.log('MultEQ Type:: XT32 (subwoofer filters: 687 active FIR taps out of 704 total, speaker filters: 1003 active FIR taps out of 1024 total @ 48kHz / multiRate)');
     }
     const model = modelName.slice(-6);
     isGriffin = griffinLite.includes(model);
