@@ -706,7 +706,7 @@ and noninfringement. Use at your own risk.
   </div></div>
 </script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/14.0.1/math.min.js"></script><script>
 
-const evoVersion = "5.0";
+const evoVersion = "5.1";
 const baseUrl = 'http://localhost:4735/measurements', speedDelay = 255, maxDistanceLimit = 7.35;
 let micCalFile = new Array(16384).fill(0), audioCtx = null;
 let jsonName = 'receiver_config.avr';
@@ -1316,7 +1316,7 @@ async function checkRewMeasurements(){
   for (let i = 0; i < measurementArray.length; i++) {
     const measurement = measurementArray[i];
     const {index, title} = measurement;
-    await postNext("Trim IR to windows", index);
+    isPreProcessed ? await postSafe(`${baseUrl}/${index}/command`, {command: 'Response copy'}, 'Completed') : await postNext("Trim IR to windows", index);
     await new Promise((resolve) => setTimeout(resolve, speedDelay / 5));
     const progress1 = ((i + 1) / measurementArray.length) * 100;
     console.infoUpdate(`Processing ${progress1.toFixed(2)}% completed`);
@@ -1490,8 +1490,10 @@ async function resetAll(){
     console.infoUpdate(`Resetting IR windows, smoothing, EQ type, target shape and room curve settings...${(i / nTotal * 100).toFixed(2)}%`);
     await postNext('Smooth', i, {smoothing: "None"});
     await new Promise((resolve) => setTimeout(resolve, speedDelay / 10));
-    await postSafe(`${baseUrl}/${i}/ir-windows`, {leftWindowType: "Rectangular", rightWindowType: "Rectangular", addFDW: false}, "Update processed");
-    await new Promise((resolve) => setTimeout(resolve, speedDelay / 10));
+    if (!isPreProcessed) {
+      await postSafe(`${baseUrl}/${i}/ir-windows`, {leftWindowType: "Rectangular", rightWindowType: "Rectangular", addFDW: false}, "Update processed");
+      await new Promise((resolve) => setTimeout(resolve, speedDelay / 10));
+    }
     await postSafe(`${baseUrl}/${i}/target-settings`, {shape: "None"}, "Update processed");
     await new Promise((resolve) => setTimeout(resolve, speedDelay / 10));
     await postSafe(`${baseUrl}/${i}/room-curve-settings`, {addRoomCurve: false}, "Update processed");
@@ -2102,13 +2104,11 @@ async function sortBass() {
     await new Promise(resolve => setTimeout(resolve, speedDelay / 4));
     await postDelete(nSpeakers + 6);
   }
-  
   let sampleCount = xt32 ? 16055 : 4096;
   const rightWindowWidth = sampleCount / 48;
   await postSafe(`${baseUrl}/${nSpeakers + 6}/ir-windows`, {leftWindowType: "Rectangular", rightWindowType: "Rectangular", leftWindowWidthms: 0, rightWindowWidthms: rightWindowWidth, refTimems: 0, addFDW: false}, "Update processed");
   await postNext("Trim IR to windows", nSpeakers + 6);
   await postDelete(nSpeakers + 6);
-
   await postNext('Arithmetic', [nSpeakers + 1, nSpeakers + 6], {function: "A * B"});
   await postDelete(nSpeakers + 5);
   await postDelete(nSpeakers + 4);
@@ -2333,19 +2333,17 @@ async function alignFronts() {
 function b64ToFloat32ArrayBE(base64) {
   const binaryStr = atob(base64);
   const len = binaryStr.length;
-  if (len % 4 !== 0) console.warn('b64ToFloat32ArrayBE: Base64 decoded length is not a multiple of 4. Result may be truncated or incorrect.');
   const buffer = new ArrayBuffer(len);
   const uint8 = new Uint8Array(buffer);
-  for (let i = 0; i < len; i++) uint8[i] = binaryStr.charCodeAt(i);
+  for (var i = 0; i < len; i++) uint8[i] = binaryStr.charCodeAt(i);
   const floatCount = Math.floor(len / 4);
   const float32Array = new Float32Array(floatCount);
   const dataView = new DataView(buffer);
   for (let i = 0; i < floatCount; i++) float32Array[i] = dataView.getFloat32(i * 4, false);
   return float32Array;}
 async function fetchResponse(index, xoFreq, isSub = false, usePPO = false, allpassQ = 0) {
-  
   const filters = [{
-    index: 21, // TODO: Consider making these constants or configurable
+    index: 21,
     enabled: true,
     isAuto: false,
     frequency: xoFreq,
@@ -2355,7 +2353,7 @@ async function fetchResponse(index, xoFreq, isSub = false, usePPO = false, allpa
   }];
   if (allpassQ !== 0) {
     filters.push({
-      index: 22, // TODO: Consider making this constant or configurable
+      index: 22,
       enabled: true,
       isAuto: false,
       frequency: xoFreq,
@@ -2365,7 +2363,7 @@ async function fetchResponse(index, xoFreq, isSub = false, usePPO = false, allpa
   }
   await postSafe(`${baseUrl}/${index}/filters`, { filters }, 'Filters set');
   let url = `${baseUrl}/${index}/eq/frequency-response?unit=SPL`;
-  if (usePPO) { // This is always true in optimizeSpeakers context
+  if (usePPO) {
     url += '&smoothing=1%2F48&ppo=96';
   } else {
     url += '&smoothing=None';
@@ -2373,7 +2371,7 @@ async function fetchResponse(index, xoFreq, isSub = false, usePPO = false, allpa
   const filterResponse = await fetch(url);
   const response = await filterResponse.json();
   if (usePPO) {
-    const { startFreq, ppo, phase, magnitude } = response;
+    const {startFreq, ppo, phase, magnitude} = response;
     return {
       startFreq,
       ppo,
@@ -2381,7 +2379,7 @@ async function fetchResponse(index, xoFreq, isSub = false, usePPO = false, allpa
       magnitude: b64ToFloat32ArrayBE(magnitude)
     };
   } else {
-      const { startFreq, freqStep, phase, magnitude } = response;
+      const {startFreq, freqStep, phase, magnitude} = response;
       return {
         startFreq,
         freqStep,
@@ -2615,7 +2613,8 @@ async function refFilter(index, orgIndex) {
   await new Promise(resolve => setTimeout(resolve, speedDelay / 4));
   await postSafe(`http://localhost:4735/eq/house-curve`, targetCurvePath, 'House curve set');
   await new Promise(resolve => setTimeout(resolve, speedDelay));
-  await postSafe(`http://localhost:4735/eq/match-target-settings`, {startFrequency: 20, endFrequency: 12500, individualMaxBoostdB: 3, overallMaxBoostdB: 0, flatnessTargetdB: 1, varyQAbove200Hz: true, allowLowShelf: false, allowHighShelf: true, highShelfMin: -3, highShelfMax: 3}, 'Update processed');
+  await postSafe(`http://localhost:4735/eq/match-target-settings`, {startFrequency: 10, endFrequency: 20000, individualMaxBoostdB: 3, overallMaxBoostdB: 0, flatnessTargetdB: 1, varyQAbove200Hz: true, allowLowShelf: false, allowHighShelf: true, highShelfMin: -3, highShelfMax: 3}, 'Update processed');
+  await new Promise(resolve => setTimeout(resolve, speedDelay / 10));
   await postSafe(`http://localhost:4735/eq/match-target-settings`, {startFrequency: 200, endFrequency: 12500, individualMaxBoostdB: 3, overallMaxBoostdB: 0, flatnessTargetdB: 1, varyQAbove200Hz: true, allowLowShelf: false, allowHighShelf: true, highShelfMin: -3, highShelfMax: 3}, 'Update processed');
   await new Promise(resolve => setTimeout(resolve, speedDelay / 4));
   await postSafe(`${baseUrl}/${mpIndex + 3}/room-curve-settings`, {addRoomCurve: false}, 'Update processed');
@@ -2640,6 +2639,10 @@ async function refFilter(index, orgIndex) {
     await new Promise(resolve => setTimeout(resolve, speedDelay / 4));
     await postDelete(mpIndex + 6);
   }
+  await postNext('Smooth', mpIndex + 6, {smoothing: "None"});
+  await postSafe(`${baseUrl}/${mpIndex + 6}/ir-windows`, {leftWindowType: "Rectangular", rightWindowType: "Rectangular", leftWindowWidthms: 0, rightWindowWidthms: rightWindowWidth, refTimems: 0, addFDW: false}, "Update processed");
+  await postNext("Trim IR to windows", mpIndex + 6);
+  await postDelete(mpIndex + 6);
   await postNext('Arithmetic', [index, mpIndex + 6], {function: "A * B"});
   await new Promise(resolve => setTimeout(resolve, speedDelay / 4));
   for (let i = 5; i >= 2; i--) await postDelete(mpIndex + i);
@@ -2647,23 +2650,23 @@ async function refFilter(index, orgIndex) {
   const filterTitle = name + "filter";
   await fetchREW(mpIndex + 2, 'PUT', {title: filterTitle});
   await fetchREW(mpIndex + 3, 'PUT', {title: filterTitle.replace("ilter", "inal")});
-  await postNext('Smooth', mpIndex + 2, {smoothing: "None"});
-  await postSafe(`${baseUrl}/${mpIndex + 2}/ir-windows`, {leftWindowType: "Rectangular", rightWindowType: "Rectangular", leftWindowWidthms: 0, rightWindowWidthms: rightWindowWidth, refTimems: 0, addFDW: false}, "Update processed");
-  const magResponse = await fetchSafe('frequency-response?smoothing=None', mpIndex + 2);
-  const {startFreq, freqStep, magnitude} = magResponse;
-  const index6kHz = Math.round((6000 - startFreq) / freqStep);
-  const bytes2 = Uint8Array.from(atob(magnitude), c => c.charCodeAt(0));
-  const totalPoints = bytes2.length / 4;
-  const lastIndex = totalPoints - 1;
-  const data = new DataView(bytes2.buffer);
-  let sumPressure = 0, count = 0;
-  for (let i = index6kHz; i <= lastIndex; i++) {
-    const magValue = data.getFloat32(i * 4, false);
-    sumPressure += 10 ** (magValue / 10);
-    count++;
+  if (xt32) {
+    const magResponse = await fetchSafe('frequency-response?smoothing=None', mpIndex + 2);
+    const {startFreq, freqStep, magnitude} = magResponse;
+    const index6kHz = Math.round((6000 - startFreq) / freqStep);
+    const bytes2 = Uint8Array.from(atob(magnitude), c => c.charCodeAt(0));
+    const totalPoints = bytes2.length / 4;
+    const lastIndex = totalPoints - 1;
+    const data = new DataView(bytes2.buffer);
+    let sumPressure = 0, count = 0;
+    for (let i = index6kHz; i <= lastIndex; i++) {
+      const magValue = data.getFloat32(i * 4, false);
+      sumPressure += 10 ** (magValue / 10);
+      count++;
+    }
+    const vol0 = 5 * Math.log10(sumPressure / count);
+    customMargin[orgIndex] += vol0;
   }
-  const vol0 = 5 * Math.log10(sumPressure / count);
-  customMargin[orgIndex] += vol0;
   const response = await fetchSafe('impulse-response?windowed=true&samplerate=' + (xt32 ? '48000' : '6000'), mpIndex + 2);
   const bytes = Uint8Array.from(atob(response.data), c => c.charCodeAt(0));
   const dataView = new DataView(bytes.buffer);
@@ -2882,7 +2885,7 @@ async function optimizeSubs(i1, i2, timeShiftMinMs, timeShiftMaxMs, fMax) {
       sub2PhaseRad: toRadians(ph2[idx])
     };
   }
-  const timeShiftParams = {min: timeShiftMinMs / 1000, max: timeShiftMaxMs / 1000, step: 0.000333333333};
+  const timeShiftParams = {min: timeShiftMinMs / 1000, max: timeShiftMaxMs / 1000, step: 0.0000333333333333};
   const tsValues = [];
   for (var ts = timeShiftParams.min; ts <= timeShiftParams.max; ts += timeShiftParams.step) tsValues.push(ts);
   let bestConfig = {sumPower: -Infinity};
