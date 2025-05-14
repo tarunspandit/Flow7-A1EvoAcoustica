@@ -630,6 +630,35 @@ and noninfringement. Use at your own risk.
   </div>
   </div>
   </div>
+   
+  <div class="slider-container">
+  <div class="crossover-sliders">
+   <div class="crossover-slider">
+  <div class="slider-label">
+  <span>Minimum crossover frequency - center speaker</span>
+  <span id="minFreqValueC">40 Hz</span>
+  </div>
+  <div class="tooltip-container">
+  <input type="range" id="minFreqSliderC" class="slider" min="0" max="7" step="1" value="0">
+  <div class="tooltip">Select mimimum search frequency for center speaker crossover optimization</div>
+  </div>
+  </div>
+    
+  <div class="crossover-slider">
+  <div class="slider-label">
+  <span>Maximum crossover frequency - center speaker</span>
+  <span id="maxFreqValueC">250 Hz</span>
+  </div>
+  <div class="tooltip-container">
+  <input type="range" id="maxFreqSliderC" class="slider" min="0" max="10" step="1" value="10">
+  <div class="tooltip">Select maximum search frequency for center speaker crossover optimization</div>
+  </div>
+  </div>
+   
+   </div>
+  </div>
+
+    
   <div class="slider-container">
   <div class="crossover-sliders">
   <div class="crossover-slider">
@@ -714,10 +743,10 @@ let jsonType = 'avr';
 let jsonContent = null;
 let folderPath, localAppPath = null, ocafileName, sOs = null, isCirrusLogic, isGriffin, freqIndex = [], distFL = null, modelDelayLimit, minDistAccuracy, mSec = [], hardNegative, hardPositive, xt32 = true, xt = false;
 let nSpeakers = null, nSubs = null, subMinTrim = -12, subMaxTrim = 12, lpf4LFE, filterCompensation, targetCurvePath, targetLevel, responseTarget, dataTarget, tcName, rewMaxLimit, isPreProcessed = false, isAutomated;
-let customLevel = [], commandId = [], customDistance = [], customInvert = [], customCrossover = [], customFilter = [], deqFilter = [], subTrim = [], customMinFreq = [], customMaxFreq = [], customMinFreqFR = [], customMaxFreqFR = [], customMargin = [], subAllPassQ = null, allpassQ = [];
+let customLevel = [], commandId = [], customDistance = [], customInvert = [], customCrossover = [], customFilter = [], deqFilter = [], subTrim = [], customMinFreq = [], customMaxFreq = [], customMinFreqFR = [], customMaxFreqFR = [], customMinFreqC = [], customMaxFreqC = [],customMargin = [], subAllPassQ = null, allpassQ = [];
 const defaultSlope = "L-R4";
 const dbValues = [-12, -15, -18, -20, -25]; //Equal loudness contours
-var subBoost = 0, bassFill = 0, levelLowVol = 2, enableInversion = false, minFreq = 40, maxFreq = 250, minFreqFR = 40, maxFreqFR = 250, subRolloffEnabled = false, subRolloffFreq = null, subRolloffSlope = defaultSlope, lpf4lfeValue = null;
+var subBoost = 0, bassFill = 0, levelLowVol = 2, enableInversion = false, minFreq = 40, maxFreq = 250, minFreqFR = 40, maxFreqFR = 250, minFreqC = 40, maxFreqC = 250,  subRolloffEnabled = false, subRolloffFreq = null, subRolloffSlope = defaultSlope, lpf4lfeValue = null;
 
 async function floatsToBase64(floatArray) {
     const nativeFloat32Data = (floatArray instanceof Float32Array) ? floatArray : new Float32Array(floatArray);
@@ -1336,17 +1365,19 @@ async function main(){
   measurementChoice.classList.add('transitioned');
   const startTime = performance.now();
   console.infoBold(`** Customizations start **`);
-  const defaults = {subBoost: 0, bassFill: 0, levelLowVol: 2, enableInversion: false, minFreq: 40, maxFreq: 250, minFreqFR: 40, maxFreqFR: 250};
-  const customizations = {subBoost, bassFill, levelLowVol, enableInversion, minFreq, maxFreq, minFreqFR, maxFreqFR};
+  const defaults = {subBoost: 0, bassFill: 0, levelLowVol: 2, enableInversion: false, minFreq: 40, maxFreq: 250, minFreqFR: 40, maxFreqFR: 250, minFreqC: 40, maxFreqC: 250};
+  const customizations = {subBoost, bassFill, levelLowVol, enableInversion, minFreq, maxFreq, minFreqFR, maxFreqFR, minFreqC, maxFreqC};
   const descriptions = {
     subBoost: `Subwoofer EQ filters maximum allowed boost (dB): `,
     bassFill: `Subwoofer target curve infill value (dB): `,
     levelLowVol: `Low volume listening level offset (dB): `,
     enableInversion: `Out of phase 'Speaker' detection and automatic inversion? `,
+    minFreq: `Minimum searchable crossover frequency - all other speakers: `,
+    maxFreq: `Maximum searchable crossover frequency - all other speakers: `,
     minFreqFR: `Minimum searchable crossover frequency - front mains: `,
     maxFreqFR: `Maximum searchable crossover frequency - front mains: `,
-    minFreq: `Minimum searchable crossover frequency - all other speakers: `,
-    maxFreq: `Maximum searchable crossover frequency - all other speakers: `
+	  minFreqC: `Minimum searchable crossover frequency - center speaker: `,
+    maxFreqC: `Maximum searchable crossover frequency - center speaker: `
   };
   for (let key in customizations) {
     let displayValue = customizations[key];
@@ -2435,8 +2466,44 @@ async function optimizeSpeakers(sp1, sp2 = null) {
   } else {
     console.error("Target response PPO is invalid or missing. Cannot proceed."); return;
   }
-  const isDolby = (['BDL', 'FDL', 'SDL'].includes(commandId[sp1]));
-  const xoCandidates = freqIndex.filter(f => f >= (isDolby ? Math.max(minFreq ?? 40, 100) : (minFreq ?? 40)) && f <= (maxFreq ?? 250));
+const isDolby = (['BDL', 'FDL', 'SDL'].includes(commandId[sp1]));
+  const isCenter = (['C'].includes(commandId[sp1]));
+  
+  /*
+  const xoCandidates = freqIndex.filter(f => 
+	// Min f. Dolby
+	f >= (isDolby  ? Math.max(minFreq ?? 40, 100) : (minFreq ?? 40)) && 
+	// Max f. C
+	f <= (isCenter ? Math.min(maxFreqC ?? 250, 40) : (maxFreqC ?? 250)) &&
+	);
+
+*/
+	
+	var minAllowedFreq, maxAllowedFreq;
+	
+	minAllowedFreq = minFreq ?? 40;
+	maxAllowedFreq = maxFreq ?? 250;
+	
+	if (isDolby) {
+		maxAllowedFreq = Math.max(minFreq ?? 40, 100);
+	}
+	
+	if (isCenter) {		
+		minAllowedFreq = Math.min(minFreqC ?? 40, 250);
+		maxAllowedFreq = Math.max(maxFreqC ?? 250, 40);			
+	}
+
+	
+const xoCandidates = freqIndex.filter(f => 
+    f >= minAllowedFreq &&  // Ensure frequency is above the minimum threshold
+    f <= maxAllowedFreq     // Ensure frequency is below the maximum threshold
+);
+
+
+
+
+
+  
   let bestWorstDip = Infinity, bestWorstXO = null, bestSumDip = Infinity, bestSumXO = null;
   let bestWorstq1 = null, bestWorstq2 = null, bestSumAP1 = null, bestSumAP2 = null;
   const getPpoIndexingConstants = (speakerResponse, targetResponsePPO) => {
@@ -3235,6 +3302,7 @@ document.addEventListener('DOMContentLoaded', () => {
   fetchAppPath().catch(err => {
        console.warn("Initial fetch for app path failed (may affect saving):", err.message);
   });
+
   UpdateSubBoost(subBoost, true);
   UpdateBassFill(bassFill, true);
   UpdateLowVolume(levelLowVol, true);
@@ -3242,7 +3310,10 @@ document.addEventListener('DOMContentLoaded', () => {
   UpdateMaxFreq(maxFreq, true);
   UpdateMinFreqFR(minFreqFR, true);
   UpdateMaxFreqFR(maxFreqFR, true);
+  UpdateMinFreqC(minFreqC, true);
+  UpdateMaxFreqC(maxFreqC, true);
   UpdateenableInversion(enableInversion, false);
+  
   document.getElementById('bassFillSlider').addEventListener('input', function (e) {
     const normalizedValue = e.target.value.replace(',', '.');
     UpdateBassFill(parseFloat(normalizedValue), false);
@@ -3274,6 +3345,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const value = customMaxFreqFR[index];
     UpdateMaxFreqFR(value, false);
   });
+      document.getElementById('minFreqSliderC').addEventListener('input', function (e) {
+    const index = parseInt(e.target.value, 10);
+    const value = customMinFreqC[index];
+    UpdateMinFreqC(value, false);
+  });
+  document.getElementById('maxFreqSliderC').addEventListener('input', function (e) {
+    const index = parseInt(e.target.value, 10);
+    const value = customMaxFreqC[index];
+    UpdateMaxFreqC(value, false);
+  });
+  
   document.getElementById('disableSpeakerInversion').addEventListener('change', function (event) {
     UpdateenableInversion(event.target.checked, false);
   });
@@ -3478,7 +3560,9 @@ function readContents() {
     customMaxFreq = freqIndex.filter(freq => freq >= 40);
     customMinFreqFR = freqIndex.filter(freq => freq < 180);
     customMaxFreqFR = freqIndex.filter(freq => freq >= 40);
-    distFL = 2.75;
+  	customMinFreqC = freqIndex.filter(freq => freq < 180);
+    customMaxFreqC = freqIndex.filter(freq => freq >= 40);
+     distFL = 2.75;
     console.info(`Model specific speed of sound setting: ${sOs} m/s`);
     console.info(`Model is capable of setting 180Hz crossover: ${!no180}`);
     console.info(`Model has Cirrus Logic DSP chip: ${isCirrusLogic}`);};
@@ -3576,6 +3660,30 @@ function UpdateMaxFreqFR(maxFreqHzFR, syncSlider) {
       if (index !== -1) document.getElementById('maxFreqSliderFR').value = index; 
     }
   }}
+
+    function UpdateMinFreqC(minFreqHzC, syncSlider) {
+  if (!isNaN(minFreqHzC)) {
+    if (minFreqHzC > maxFreqC) return;
+    minFreqC = minFreqHzC;
+    document.getElementById('minFreqValueC').textContent = minFreqHzC + ' Hz';
+    if (syncSlider) {
+      const index = customMinFreq.indexOf(minFreqHzC);
+      if (index !== -1) document.getElementById('minFreqSliderC').value = index;
+    }
+  }}
+
+function UpdateMaxFreqC(maxFreqHzC, syncSlider) {
+  if (!isNaN(maxFreqHzC)) {
+    if (maxFreqHzC < minFreqC) return;
+    maxFreqC = maxFreqHzC;
+    document.getElementById('maxFreqValueC').textContent = maxFreqHzC + ' Hz';
+    if (syncSlider) {
+      const index = customMaxFreq.findIndex(freq => Math.abs(freq - maxFreqHzC) < 0.1);
+      if (index !== -1) document.getElementById('maxFreqSliderC').value = index; 
+    }
+  }}
+
+  
 function UpdateenableInversion(disableInv, syncToggle) {
   enableInversion = disableInv;
   if (syncToggle) {
