@@ -1,7 +1,7 @@
 {
   "name": "a1-evo-acoustica",
-  "version": "5.1",
-  "description": "Optimizer tool for Denon & Marantz AVRs",
+  "version": "5.2",
+  "description": "Sound optimizer tool for Denon & Marantz AVRs",
   "main": "main.js",
   "bin": "main.js",
   "type": "commonjs",
@@ -19,8 +19,8 @@
   },
   "author": "OCA",
   "dependencies": {
-    "inquirer": "^8.2.4",
-    "open": "^8.4.0",
+    "inquirer": "^8.2.6",
+    "open": "^8.4.2",
     "xml2js": "^0.6.2"
   },
   "devDependencies": {

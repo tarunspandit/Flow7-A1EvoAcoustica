@@ -610,7 +610,7 @@ and noninfringement. Use at your own risk.
   <div class="crossover-sliders">
   <div class="crossover-slider">
   <div class="slider-label">
-  <span>Minimum crossover frequency - front mains</span>
+  <span>Minimum crossover frequency - Front mains</span>
   <span id="minFreqValueFR">40 Hz</span>
   </div>
   <div class="tooltip-container">
@@ -620,7 +620,7 @@ and noninfringement. Use at your own risk.
   </div>
   <div class="crossover-slider">
   <div class="slider-label">
-  <span>Maximum crossover frequency - front mains</span>
+  <span>Maximum crossover frequency - Front mains</span>
   <span id="maxFreqValueFR">250 Hz</span>
   </div>
   <div class="tooltip-container">
@@ -630,23 +630,21 @@ and noninfringement. Use at your own risk.
   </div>
   </div>
   </div>
-   
   <div class="slider-container">
   <div class="crossover-sliders">
-   <div class="crossover-slider">
+  <div class="crossover-slider">
   <div class="slider-label">
-  <span>Minimum crossover frequency - center speaker</span>
+  <span>Minimum crossover frequency - Center speaker</span>
   <span id="minFreqValueC">40 Hz</span>
   </div>
   <div class="tooltip-container">
   <input type="range" id="minFreqSliderC" class="slider" min="0" max="7" step="1" value="0">
   <div class="tooltip">Select mimimum search frequency for center speaker crossover optimization</div>
   </div>
-  </div>
-    
+  </div> 
   <div class="crossover-slider">
   <div class="slider-label">
-  <span>Maximum crossover frequency - center speaker</span>
+  <span>Maximum crossover frequency - Center speaker</span>
   <span id="maxFreqValueC">250 Hz</span>
   </div>
   <div class="tooltip-container">
@@ -654,16 +652,13 @@ and noninfringement. Use at your own risk.
   <div class="tooltip">Select maximum search frequency for center speaker crossover optimization</div>
   </div>
   </div>
-   
-   </div>
   </div>
-
-    
+  </div>
   <div class="slider-container">
   <div class="crossover-sliders">
   <div class="crossover-slider">
   <div class="slider-label">
-  <span>Minimum crossover frequency - all other speakers</span>
+  <span>Minimum crossover frequency - All other speakers</span>
   <span id="minFreqValue">40 Hz</span>
   </div>
   <div class="tooltip-container">
@@ -673,7 +668,7 @@ and noninfringement. Use at your own risk.
   </div>
   <div class="crossover-slider">
   <div class="slider-label">
-  <span>Maximum crossover frequency - all other speakers</span>
+  <span>Maximum crossover frequency - All other speakers</span>
   <span id="maxFreqValue">250 Hz</span>
   </div>
   <div class="tooltip-container">
@@ -735,7 +730,7 @@ and noninfringement. Use at your own risk.
   </div></div>
 </script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/14.0.1/math.min.js"></script><script>
 
-const evoVersion = "5.1";
+const evoVersion = "5.2";
 const baseUrl = 'http://localhost:4735/measurements', speedDelay = 255, maxDistanceLimit = 7.35;
 let micCalFile = new Array(16384).fill(0), audioCtx = null;
 let jsonName = 'receiver_config.avr';
@@ -1248,7 +1243,6 @@ async function checkRewMeasurements(){
     ...configuredSpeakers.filter(name => !name.startsWith('SW')),
     ...Array.from({length: subwooferCount }, (_, i) => `SW${i + 1}`)
   ]);
-  if (isPreProcessed) {allowedNames = new Set([...allowedNames].map(name => `${name}o`));}
   let allResponses = await fetchREW();
   let nTotal = Object.keys(allResponses).length;
    if (nTotal > 500) {
@@ -1345,7 +1339,7 @@ async function checkRewMeasurements(){
   for (let i = 0; i < measurementArray.length; i++) {
     const measurement = measurementArray[i];
     const {index, title} = measurement;
-    isPreProcessed ? await postSafe(`${baseUrl}/${index}/command`, {command: 'Response copy'}, 'Completed') : await postNext("Trim IR to windows", index);
+    await postNext("Trim IR to windows", index);
     await new Promise((resolve) => setTimeout(resolve, speedDelay / 5));
     const progress1 = ((i + 1) / measurementArray.length) * 100;
     console.infoUpdate(`Processing ${progress1.toFixed(2)}% completed`);
@@ -1396,11 +1390,15 @@ async function main(){
   isAutomated = await checkOrigin();
   isPreProcessed = await checkPrePro();
   isAutomated ? console.log("<< Optimizing using 'automated' measurements with 16k samples >>") : console.log("<< Optimizing using 'manual REW' measurements with 256k samples >>");
-  if (isPreProcessed) console.log('<< Using previously processed and saved measurements >>')
-  await (isPreProcessed ? checkRewMeasurements() : (isAutomated ? checkAutomatedMeasurements() : checkRewMeasurements()));
-  await resetAll();
-  if (!isAutomated && !isPreProcessed) await fixSubs4REW();
-  await ocAced();
+  if (!isPreProcessed) {
+    isAutomated ? await checkAutomatedMeasurements() : await checkRewMeasurements()
+    await resetAll();
+    if (!isAutomated) await fixSubs4REW();
+    await ocAced();
+  } else {
+    console.log('<< Using previously processed and saved measurements >>');
+  }
+  await secondary();
   await setVolumeLevels();
   await sortBass();
   await refResults();
@@ -1515,16 +1513,16 @@ async function resetAll(){
   await postSafe(`http://localhost:4735/eq/default-equaliser`, {manufacturer: "Generic", model: "Generic"}, "Default equaliser changed");
   await postSafe(`http://localhost:4735/eq/default-room-curve-settings`, {addRoomCurve: false}, "Update processed");
   await postSafe(`http://localhost:4735/eq/default-target-settings`, {shape: "None"}, "Update processed");
+  await new Promise((resolve) => setTimeout(resolve, speedDelay));
   let allResponses = await fetchREW();
+  await new Promise((resolve) => setTimeout(resolve, speedDelay));
   let nTotal = Object.keys(allResponses).length;
   for (let i = 1; i <= nTotal; i++) {
     console.infoUpdate(`Resetting IR windows, smoothing, EQ type, target shape and room curve settings...${(i / nTotal * 100).toFixed(2)}%`);
     await postNext('Smooth', i, {smoothing: "None"});
     await new Promise((resolve) => setTimeout(resolve, speedDelay / 10));
-    if (!isPreProcessed) {
-      await postSafe(`${baseUrl}/${i}/ir-windows`, {leftWindowType: "Rectangular", rightWindowType: "Rectangular", addFDW: false}, "Update processed");
-      await new Promise((resolve) => setTimeout(resolve, speedDelay / 10));
-    }
+    await postSafe(`${baseUrl}/${i}/ir-windows`, {leftWindowType: "Rectangular", rightWindowType: "Rectangular", addFDW: false}, "Update processed");
+    await new Promise((resolve) => setTimeout(resolve, speedDelay / 10));
     await postSafe(`${baseUrl}/${i}/target-settings`, {shape: "None"}, "Update processed");
     await new Promise((resolve) => setTimeout(resolve, speedDelay / 10));
     await postSafe(`${baseUrl}/${i}/room-curve-settings`, {addRoomCurve: false}, "Update processed");
@@ -1577,15 +1575,11 @@ async function ocAced() {
     }
   }
   if (currentGroup.length > 0) {
-    if (!isSubwooferGroup && currentGroup.length > 1) {
-      await syncPeaks(currentGroup, currentPrefix);
-    }
+    if (!isSubwooferGroup && currentGroup.length > 1) await syncPeaks(currentGroup, currentPrefix);
     await getSpatial(currentGroup, currentPrefix);
   }
-  if (!isPreProcessed) console.info(`Clean up in progress...`);
-  for (let i = measurementArray.length; i > 0; i--) {
-    await postDelete(i);
-  };
+  console.info(`Clean up in progress...`);
+  for (let i = measurementArray.length; i > 0; i--) await postDelete(i);
   if (anyMultipleMeasurements) {
     await putSafe(`${baseUrl}/1`, {notes: 'pre-processsed measurement'},'Update processed');
     const modalHtml = `
@@ -1673,29 +1667,30 @@ async function ocAced() {
       });
     });
     if (result) {
-        try {
-            if (!localAppPath) {
-                 await fetchAppPath();
-                 if (!localAppPath) {
-                      throw new Error("Cannot save: Application path is unknown.");
-                 }
-            }
-            const now = new Date();
-            const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}`;
-            const fileName = `Pre-processedMeasurements_${timestamp}.mdat`;
-            const fullPath = `${localAppPath}/${fileName}`;
-            await postSafe(`http://localhost:4735/measurements/command`, {command: 'Save all', parameters: [fullPath] }, 'Saved all measurements');
-            console.log(`${fullPath} saved in the main application folder.`);
-        } catch (error) {
-            console.error("Error preparing or sending save command:", error);
-            alert(`Failed to save measurements via REW: ${error.message}`);
+      try {
+        if (!localAppPath) {
+             await fetchAppPath();
+             if (!localAppPath) {
+                  throw new Error("Cannot save: Application path is unknown.");
+             }
         }
+        const now = new Date();
+        const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}`;
+        const fileName = `Pre-processedMeasurements_${timestamp}.mdat`;
+        const fullPath = `${localAppPath}/${fileName}`;
+        await postSafe(`http://localhost:4735/measurements/command`, {command: 'Save all', parameters: [fullPath] }, 'Saved all measurements');
+        console.log(`${fullPath} saved in the main application folder.`);
+      } catch (error) {
+          console.error("Error preparing or sending save command:", error);
+          alert(`Failed to save measurements via REW: ${error.message}`);
+      }
     } else {
         console.log('User chose not to save progress.');
     }
-  }
-  allResponses = await fetchREW();
-  measurementArray = Object.keys(allResponses).map(key => ({
+  }}
+async function secondary(){
+  let allResponses = await fetchREW();
+  let measurementArray = Object.keys(allResponses).map(key => ({
     index: parseInt(key),
     title: allResponses[key].title
   }));
@@ -2360,7 +2355,7 @@ async function alignFronts() {
   console.infoBold("Final crossover and polarity settings:");
   for (let i = 1; i <= nSpeakers; i++) console.log(`${commandId[i]}: ${customCrossover[i]}Hz, polarity inverted? ${customInvert[i]}`);
   for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) console.log(`${commandId[i]}, polarity inverted? ${customInvert[i]}`);
-  if (customInvert.some(Boolean)) console.warn("Polarity inversions will be applied automatically by A1 Evo Acoustica!");}
+  if (customInvert.some(Boolean)) console.warn("Polarity inversion(s) will be applied automatically by A1 Evo Acoustica!");}
 function b64ToFloat32ArrayBE(base64) {
   const binaryStr = atob(base64);
   const len = binaryStr.length;
@@ -2466,50 +2461,24 @@ async function optimizeSpeakers(sp1, sp2 = null) {
   } else {
     console.error("Target response PPO is invalid or missing. Cannot proceed."); return;
   }
-const isDolby = (['BDL', 'FDL', 'SDL'].includes(commandId[sp1]));
-  const isCenter = (['C'].includes(commandId[sp1]));
-  
-  /*
-  const xoCandidates = freqIndex.filter(f => 
-	// Min f. Dolby
-	f >= (isDolby  ? Math.max(minFreq ?? 40, 100) : (minFreq ?? 40)) && 
-	// Max f. C
-	f <= (isCenter ? Math.min(maxFreqC ?? 250, 40) : (maxFreqC ?? 250)) &&
-	);
-
-*/
-	
-	var minAllowedFreq, maxAllowedFreq;
-	
-	minAllowedFreq = minFreq ?? 40;
-	maxAllowedFreq = maxFreq ?? 250;
-	
-	if (isDolby) {
-		maxAllowedFreq = Math.max(minFreq ?? 40, 100);
-	}
-	
-	if (isCenter) {		
-		minAllowedFreq = Math.min(minFreqC ?? 40, 250);
-		maxAllowedFreq = Math.max(maxFreqC ?? 250, 40);			
-	}
-
-	
-const xoCandidates = freqIndex.filter(f => 
-    f >= minAllowedFreq &&  // Ensure frequency is above the minimum threshold
-    f <= maxAllowedFreq     // Ensure frequency is below the maximum threshold
-);
-
-
-
-
-
-  
+  const isCenter = ['C'].includes(commandId[sp1]);
+  const isDolby = ['BDL', 'FDL', 'SDL'].includes(commandId[sp1]);
+  const xoCandidates = freqIndex.filter(f => {
+    let min, max;
+    if (isCenter) {
+      min = minFreqC ?? 40;
+      max = maxFreqC ?? 250;
+    } else {
+      min = minFreq ?? 40;
+      max = maxFreq ?? 250;
+      if (isDolby) min = Math.max(min, 100);
+    }
+    return f >= min && f <= max;
+  });
   let bestWorstDip = Infinity, bestWorstXO = null, bestSumDip = Infinity, bestSumXO = null;
   let bestWorstq1 = null, bestWorstq2 = null, bestSumAP1 = null, bestSumAP2 = null;
   const getPpoIndexingConstants = (speakerResponse, targetResponsePPO) => {
-    if (!speakerResponse?.startFreq || !speakerResponse?.ppo || speakerResponse.ppo <= 0 || !targetResponsePPO || targetResponsePPO <= 0) {
-        return { A: NaN, B: NaN, magLength: 0, phaseLength: 0, isValid: false };
-    }
+    if (!speakerResponse?.startFreq || !speakerResponse?.ppo || speakerResponse.ppo <= 0 || !targetResponsePPO || targetResponsePPO <= 0) return {A: NaN, B: NaN, magLength: 0, phaseLength: 0, isValid: false};
     const A = Math.log2(targetResp.startFreq / speakerResponse.startFreq) * speakerResponse.ppo;
     const B = speakerResponse.ppo / targetResponsePPO;
     return { A, B, magLength: speakerResponse.magnitude.length, phaseLength: speakerResponse.phase.length, isValid: true };
@@ -3299,10 +3268,7 @@ async function fastConvolution(arrayData, micCalFile) {
   });}
 document.addEventListener('DOMContentLoaded', () => {
   autoLoadConfiguration();
-  fetchAppPath().catch(err => {
-       console.warn("Initial fetch for app path failed (may affect saving):", err.message);
-  });
-
+  fetchAppPath().catch(err => {console.warn("Initial fetch for app path failed (may affect saving):", err.message);});
   UpdateSubBoost(subBoost, true);
   UpdateBassFill(bassFill, true);
   UpdateLowVolume(levelLowVol, true);
@@ -3313,7 +3279,6 @@ document.addEventListener('DOMContentLoaded', () => {
   UpdateMinFreqC(minFreqC, true);
   UpdateMaxFreqC(maxFreqC, true);
   UpdateenableInversion(enableInversion, false);
-  
   document.getElementById('bassFillSlider').addEventListener('input', function (e) {
     const normalizedValue = e.target.value.replace(',', '.');
     UpdateBassFill(parseFloat(normalizedValue), false);
@@ -3355,7 +3320,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const value = customMaxFreqC[index];
     UpdateMaxFreqC(value, false);
   });
-  
   document.getElementById('disableSpeakerInversion').addEventListener('change', function (event) {
     UpdateenableInversion(event.target.checked, false);
   });
@@ -3410,162 +3374,162 @@ document.addEventListener('DOMContentLoaded', () => {
     console.error("One or more rolloff control elements not found!");
   }});
 function autoLoadConfiguration() {
-    const configFileName = 'receiver_config.avr';
-    if (window.location.protocol === 'file:') {
-        console.warn("Page loaded via file:// protocol. Skipping automatic fetch.");
-        const loadingMsgElement = document.getElementById('loadingMessage');
-        if (loadingMsgElement) loadingMsgElement.style.display = 'none';
-        const manualSection = document.getElementById('manualLoadSection');
-        const manualText = document.getElementById('manualLoadText');
-        if (manualSection && manualText) {
-            manualText.textContent = `You are supposed to use the main menu to run this tool! Select configuration file '${configFileName}' manually to override and start optimization:`; // Set text
-            manualSection.style.display = 'block';
-        } else {
-            throwError(`Page loaded locally, but manual input elements not found. Cannot proceed!`);
-        }
-        return;
+  const configFileName = 'receiver_config.avr';
+  if (window.location.protocol === 'file:') {
+    console.warn("Page loaded via file:// protocol. Skipping automatic fetch.");
+    const loadingMsgElement = document.getElementById('loadingMessage');
+    if (loadingMsgElement) loadingMsgElement.style.display = 'none';
+    const manualSection = document.getElementById('manualLoadSection');
+    const manualText = document.getElementById('manualLoadText');
+    if (manualSection && manualText) {
+        manualText.textContent = `You are supposed to use the main menu to run this tool! Select configuration file '${configFileName}' manually to override and start optimization:`; // Set text
+        manualSection.style.display = 'block';
+    } else {
+        throwError(`Page loaded locally, but manual input elements not found. Cannot proceed!`);
     }
-    console.log(`Attempting to auto-load ${configFileName} via ${window.location.protocol}...`);
-    fetch(configFileName)
-        .then(response => {
-            console.log(`Fetch response status for ${configFileName}: ${response.status}`);
-            if (!response.ok) {
-                return response.json().catch(() => {
-                    throw new Error(`Server responded ${response.status} for ${configFileName}`);
-                }).then(errData => {
-                    throw new Error(errData.error || `Server responded ${response.status} for ${configFileName}`);
-                });
-            }
-             return response.json().catch(parseError => {
-                console.error(`Failed to parse ${configFileName} as JSON:`, parseError);
-                throw new Error(`Invalid JSON format in ${configFileName}.`);
-            });
-        })
-        .then(data => {
-            jsonContent = data;
-            const loadingMsgElement = document.getElementById('loadingMessage');
-            if (loadingMsgElement) loadingMsgElement.style.display = 'none';
-            const measurementChoice = document.getElementById('measurementChoice');
-            if (measurementChoice) measurementChoice.classList.remove('hidden');
-            try {
-                readContents();
-            } catch (readContentsError) {
-                console.error("Error occurred *inside* readContents():", readContentsError);
-                throw new Error(`Error during configuration processing: ${readContentsError.message}`);
-            }
-        })
-        .catch(error => {
-            console.warn("Auto-load from server failed:", error.message);
-            const loadingMsgElement = document.getElementById('loadingMessage');
-            if (loadingMsgElement) loadingMsgElement.style.display = 'none';
-            const manualSection = document.getElementById('manualLoadSection');
-            const manualText = document.getElementById('manualLoadText');
-            if (manualSection && manualText) {
-                manualText.textContent = `Automatic load failed (${error.message}). Please manually select your '${configFileName}' file:`;
-                manualSection.style.display = 'block';
-            } else {
-                throwError(`Automatic load failed: ${error.message}. Please ensure the main app is running or reload the page.`);
-            }
-        });}
-function handleManualConfigFileSelect(event) {
-    console.log("handleManualConfigFileSelect: Function started.");
-    const file = event.target.files[0];
-    const manualErrorDiv = document.getElementById('manualLoadError');
-    if(manualErrorDiv) manualErrorDiv.textContent = '';
-    if (!file) {
-        console.log("handleManualConfigFileSelect: No file selected.");
-        return;
-    }
-    console.log(`handleManualConfigFileSelect: File object obtained: ${file.name}`, file);
-    jsonName = file.name;
-    jsonType = file.name.split('.').pop().toLowerCase();
-    const reader = new FileReader();
-    reader.onload = function(e) {
-      console.log("handleManualConfigFileSelect: FileReader onload triggered.");
-      try {
-        console.log("handleManualConfigFileSelect: Attempting to parse file content...");
-        const fileContent = e.target.result;
-        jsonContent = JSON.parse(fileContent);
-        console.log("handleManualConfigFileSelect: Manual file parsed successfully. jsonContent:", jsonContent);
-        console.log("handleManualConfigFileSelect: Attempting to update UI elements...");
-        const manualSection = document.getElementById('manualLoadSection');
-        if (manualSection) manualSection.style.display = 'none';
-        else console.warn("handleManualConfigFileSelect: Element 'manualLoadSection' not found.");
-        const measurementChoice = document.getElementById('measurementChoice');
-        if (measurementChoice) measurementChoice.classList.remove('hidden');
-        else console.warn("handleManualConfigFileSelect: Element 'measurementChoice' not found.");
-        console.log("handleManualConfigFileSelect: Attempting to call readContents()...");
-        readContents();
-        console.log("Manual config cile select mode activated!");
-      } catch (parseOrProcessError) {
-        console.error("handleManualConfigFileSelect: Error during parsing or processing:", parseOrProcessError);
-        if (manualErrorDiv) {
-            manualErrorDiv.textContent = `Error processing file: ${parseOrProcessError.message}. Check console for details.`;
-        } else {
-             alert(`Error processing file: ${parseOrProcessError.message}.`);
-        }
-         const measurementChoice = document.getElementById('measurementChoice');
-         if (measurementChoice) measurementChoice.classList.add('hidden');
+    return;
+  }
+  console.log(`Attempting to auto-load ${configFileName} via ${window.location.protocol}...`);
+  fetch(configFileName)
+    .then(response => {
+      console.log(`Fetch response status for ${configFileName}: ${response.status}`);
+      if (!response.ok) {
+        return response.json().catch(() => {
+            throw new Error(`Server responded ${response.status} for ${configFileName}`);
+        }).then(errData => {
+            throw new Error(errData.error || `Server responded ${response.status} for ${configFileName}`);
+        });
       }
-    };
-    reader.onerror = function(e) {
-      console.error("handleManualConfigFileSelect: FileReader error:", reader.error);
+       return response.json().catch(parseError => {
+        console.error(`Failed to parse ${configFileName} as JSON:`, parseError);
+        throw new Error(`Invalid JSON format in ${configFileName}.`);
+      });
+    })
+    .then(data => {
+      jsonContent = data;
+      const loadingMsgElement = document.getElementById('loadingMessage');
+      if (loadingMsgElement) loadingMsgElement.style.display = 'none';
+      const measurementChoice = document.getElementById('measurementChoice');
+      if (measurementChoice) measurementChoice.classList.remove('hidden');
+      try {
+        readContents();
+      } catch (readContentsError) {
+        console.error("Error occurred *inside* readContents():", readContentsError);
+        throw new Error(`Error during configuration processing: ${readContentsError.message}`);
+      }
+    })
+    .catch(error => {
+      console.warn("Auto-load from server failed:", error.message);
+      const loadingMsgElement = document.getElementById('loadingMessage');
+      if (loadingMsgElement) loadingMsgElement.style.display = 'none';
+      const manualSection = document.getElementById('manualLoadSection');
+      const manualText = document.getElementById('manualLoadText');
+      if (manualSection && manualText) {
+        manualText.textContent = `Automatic load failed (${error.message}). Please manually select your '${configFileName}' file:`;
+        manualSection.style.display = 'block';
+      } else {
+        throwError(`Automatic load failed: ${error.message}. Please ensure the main app is running or reload the page.`);
+      }
+    });}
+function handleManualConfigFileSelect(event) {
+  console.log("handleManualConfigFileSelect: Function started.");
+  const file = event.target.files[0];
+  const manualErrorDiv = document.getElementById('manualLoadError');
+  if(manualErrorDiv) manualErrorDiv.textContent = '';
+  if (!file) {
+    console.log("handleManualConfigFileSelect: No file selected.");
+    return;
+  }
+  console.log(`handleManualConfigFileSelect: File object obtained: ${file.name}`, file);
+  jsonName = file.name;
+  jsonType = file.name.split('.').pop().toLowerCase();
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    console.log("handleManualConfigFileSelect: FileReader onload triggered.");
+    try {
+      console.log("handleManualConfigFileSelect: Attempting to parse file content...");
+      const fileContent = e.target.result;
+      jsonContent = JSON.parse(fileContent);
+      console.log("handleManualConfigFileSelect: Manual file parsed successfully. jsonContent:", jsonContent);
+      console.log("handleManualConfigFileSelect: Attempting to update UI elements...");
+      const manualSection = document.getElementById('manualLoadSection');
+      if (manualSection) manualSection.style.display = 'none';
+      else console.warn("handleManualConfigFileSelect: Element 'manualLoadSection' not found.");
+      const measurementChoice = document.getElementById('measurementChoice');
+      if (measurementChoice) measurementChoice.classList.remove('hidden');
+      else console.warn("handleManualConfigFileSelect: Element 'measurementChoice' not found.");
+      console.log("handleManualConfigFileSelect: Attempting to call readContents()...");
+      readContents();
+      console.log("Manual config cile select mode activated!");
+    } catch (parseOrProcessError) {
+      console.error("handleManualConfigFileSelect: Error during parsing or processing:", parseOrProcessError);
       if (manualErrorDiv) {
-          manualErrorDiv.textContent = `Error reading file: ${reader.error}`;
-       } else {
-          alert(`Error reading file: ${reader.error}`);
-       }
-    };
-    console.log("handleManualConfigFileSelect: Calling reader.readAsText...");
-    reader.readAsText(file);}
+          manualErrorDiv.textContent = `Error processing file: ${parseOrProcessError.message}. Check console for details.`;
+      } else {
+           alert(`Error processing file: ${parseOrProcessError.message}.`);
+      }
+       const measurementChoice = document.getElementById('measurementChoice');
+       if (measurementChoice) measurementChoice.classList.add('hidden');
+    }
+  };
+  reader.onerror = function(e) {
+    console.error("handleManualConfigFileSelect: FileReader error:", reader.error);
+    if (manualErrorDiv) {
+        manualErrorDiv.textContent = `Error reading file: ${reader.error}`;
+     } else {
+        alert(`Error reading file: ${reader.error}`);
+     }
+  };
+  console.log("handleManualConfigFileSelect: Calling reader.readAsText...");
+  reader.readAsText(file);}
 document.addEventListener('DOMContentLoaded', autoLoadConfiguration);
 document.getElementById('manualConfigFileInput').addEventListener('change', handleManualConfigFileSelect);
 function readContents() {
-    document.getElementById('logContainer').innerHTML = '';
-    const modelsSoS300 = [ "-S720W", "-S920W", "X1300W", "X2300W", "X3300W", "NR1607", "SR5011", "SR6011", "C-A110", "X3700H", "X4700H","X6500H", "X6700H",
-                           "X8500H", "R-A110", "-S730H", "-S740H", "-S750H", "-S760H", "-S930H", "-S940H", "-S950H", "-S960H", "X1400H", "X1500H", "X1600H",
-                           "X1700H", "X2400H", "X2500H", "X2600H", "X2700H", "X3400H", "X3500H", "X3600H", "X3700H", "X4300H", "X4400H", "X4500H", "X4700H",
-                           "X6300H", "X6400H", "X6500H", "X6700H", "X8500H", "AV7703", "AV7704", "AV7705", "AV7706", "AV8805", "NR1608", "NR1609", "NR1710",
-                           "NR1711", "SR5012", "SR5013", "SR5014", "SR5015", "SR6012", "SR6013", "SR6014", "SR6015", "SR7011", "SR7012", "SR7013", "SR7015",
-                           "SR8012", "SR8015" ];
-    const modelsCirrusLogic = [ "-S720W", "-S920W", "X1300W", "X2300W", "X3300W", "NR1607", "SR5011", "-S730H", "-S740H", "-S750H", "-S760H", "-S930H", "-S940H", "-S950H",
-                                "-S960H", "X1400H", "X1500H", "X1600H", "X1700H", "X2400H", "X2500H", "X2600H", "X2700H", "X3400H", "X3500H", "X3600H", "NR1608", "NR1609",
-                                "NR1710", "NR1711", "SR5012", "SR5013", "SR5014", "SR5015", "SR6013", "SR6014", "-S770H", "-S970H", "X1800H", "X2800H", "EMA 60", "MA 70s" ];
-    const modelsNo180xo = [ "-S720W", "-S920W", "X1300W", "X2300W", "X3300W", "NR1607", "SR5011", "SR6011", "X6500H", "-S730H", "-S740H", "-S930H", "-S940H",
-                            "X1400H", "X1500H", "X2400H", "X2500H", "X3400H", "X3500H", "X4300H", "X4400H", "X4500H", "X6300H", "X6400H", "X6500H", "AV7703",
-                            "AV7704", "AV7705", "NR1608", "NR1609", "SR5012", "SR5013", "SR6012", "SR6013", "SR7011", "SR7012", "SR7013", "SR8012" ];
-    const griffinLite = ["X8500H", "AV8805", "X6700H", "X4700H", "AV7706", "SR8015", "SR7015", " AV 10", "VR-A1H", "VC-A1H", "X3800H", "X4800H", "EMA 30", "EMA 40", "EMA 50", "X6800H", "R-A10H", "C-A10H"];
-    const baseFreq = [40, 60, 80, 90, 100, 110, 120, 150, 200, 250];
-    const extraFreq = 180;
-    const modelName = jsonContent.targetModelName;
-    console.info(`Target AV receiver model: ${modelName}`);
-    if (jsonContent.enMultEQType != 2) {
-        xt32 = false;
-        xt = (jsonContent.enMultEQType == 1);
-        console.log(`MultEQ Type :: ${jsonContent.enMultEQType === 1 ?
-          'XT (sub filter: 512 active FIR taps, speaker filter: 512 active FIR taps @ 6kHz)' :
-          'Basic (sub filter: active 512 FIR taps, speaker filter: 128 active FIR taps @ 6kHz)'}`);
-    } else {
-        console.log('MultEQ Type:: XT32 (subwoofer filters: 687 active FIR taps out of 704 total, speaker filters: 1003 active FIR taps out of 1024 total @ 48kHz / multiRate)');
-    }
-    const model = modelName.slice(-6);
-    isGriffin = griffinLite.includes(model);
-    sOs = modelsSoS300.includes(model) ? 300.00 : 343.00;
-    minDistAccuracy = 3.0 / 100 / sOs / 2;
-    isCirrusLogic = modelsCirrusLogic.includes(model);
-    freqIndex = [...baseFreq];
-    const no180 = modelsNo180xo.includes(model);
-    if (!no180) freqIndex.splice(8, 0, extraFreq);
-    customMinFreq = freqIndex.filter(freq => freq < 180);
-    customMaxFreq = freqIndex.filter(freq => freq >= 40);
-    customMinFreqFR = freqIndex.filter(freq => freq < 180);
-    customMaxFreqFR = freqIndex.filter(freq => freq >= 40);
-  	customMinFreqC = freqIndex.filter(freq => freq < 180);
-    customMaxFreqC = freqIndex.filter(freq => freq >= 40);
-     distFL = 2.75;
-    console.info(`Model specific speed of sound setting: ${sOs} m/s`);
-    console.info(`Model is capable of setting 180Hz crossover: ${!no180}`);
-    console.info(`Model has Cirrus Logic DSP chip: ${isCirrusLogic}`);};
+  document.getElementById('logContainer').innerHTML = '';
+  const modelsSoS300 = [ "-S720W", "-S920W", "X1300W", "X2300W", "X3300W", "NR1607", "SR5011", "SR6011", "C-A110", "X3700H", "X4700H","X6500H", "X6700H",
+                         "X8500H", "R-A110", "-S730H", "-S740H", "-S750H", "-S760H", "-S930H", "-S940H", "-S950H", "-S960H", "X1400H", "X1500H", "X1600H",
+                         "X1700H", "X2400H", "X2500H", "X2600H", "X2700H", "X3400H", "X3500H", "X3600H", "X3700H", "X4300H", "X4400H", "X4500H", "X4700H",
+                         "X6300H", "X6400H", "X6500H", "X6700H", "X8500H", "AV7703", "AV7704", "AV7705", "AV7706", "AV8805", "NR1608", "NR1609", "NR1710",
+                         "NR1711", "SR5012", "SR5013", "SR5014", "SR5015", "SR6012", "SR6013", "SR6014", "SR6015", "SR7011", "SR7012", "SR7013", "SR7015",
+                         "SR8012", "SR8015" ];
+  const modelsCirrusLogic = [ "-S720W", "-S920W", "X1300W", "X2300W", "X3300W", "NR1607", "SR5011", "-S730H", "-S740H", "-S750H", "-S760H", "-S930H", "-S940H", "-S950H",
+                              "-S960H", "X1400H", "X1500H", "X1600H", "X1700H", "X2400H", "X2500H", "X2600H", "X2700H", "X3400H", "X3500H", "X3600H", "NR1608", "NR1609",
+                              "NR1710", "NR1711", "SR5012", "SR5013", "SR5014", "SR5015", "SR6013", "SR6014", "-S770H", "-S970H", "X1800H", "X2800H", "EMA 60", "MA 70s" ];
+  const modelsNo180xo = [ "-S720W", "-S920W", "X1300W", "X2300W", "X3300W", "NR1607", "SR5011", "SR6011", "X6500H", "-S730H", "-S740H", "-S930H", "-S940H",
+                          "X1400H", "X1500H", "X2400H", "X2500H", "X3400H", "X3500H", "X4300H", "X4400H", "X4500H", "X6300H", "X6400H", "X6500H", "AV7703",
+                          "AV7704", "AV7705", "NR1608", "NR1609", "SR5012", "SR5013", "SR6012", "SR6013", "SR7011", "SR7012", "SR7013", "SR8012" ];
+  const griffinLite = ["X8500H", "AV8805", "X6700H", "X4700H", "AV7706", "SR8015", "SR7015", " AV 10", "VR-A1H", "VC-A1H", "X3800H", "X4800H", "EMA 30", "EMA 40", "EMA 50", "X6800H", "R-A10H", "C-A10H"];
+  const baseFreq = [40, 60, 80, 90, 100, 110, 120, 150, 200, 250];
+  const extraFreq = 180;
+  const modelName = jsonContent.targetModelName;
+  console.info(`Target AV receiver model: ${modelName}`);
+  if (jsonContent.enMultEQType != 2) {
+    xt32 = false;
+    xt = (jsonContent.enMultEQType == 1);
+    console.log(`MultEQ Type :: ${jsonContent.enMultEQType === 1 ?
+      'XT (sub filter: 512 active FIR taps, speaker filter: 512 active FIR taps @ 6kHz)' :
+      'Basic (sub filter: active 512 FIR taps, speaker filter: 128 active FIR taps @ 6kHz)'}`);
+  } else {
+    console.log('MultEQ Type:: XT32 (subwoofer filters: 687 active FIR taps out of 704 total, speaker filters: 1003 active FIR taps out of 1024 total @ 48kHz / multiRate)');
+  }
+  const model = modelName.slice(-6);
+  isGriffin = griffinLite.includes(model);
+  sOs = modelsSoS300.includes(model) ? 300.00 : 343.00;
+  minDistAccuracy = 3.0 / 100 / sOs / 2;
+  isCirrusLogic = modelsCirrusLogic.includes(model);
+  freqIndex = [...baseFreq];
+  const no180 = modelsNo180xo.includes(model);
+  if (!no180) freqIndex.splice(8, 0, extraFreq);
+  customMinFreq = freqIndex.filter(freq => freq < 180);
+  customMaxFreq = freqIndex.filter(freq => freq >= 40);
+  customMinFreqFR = freqIndex.filter(freq => freq < 180);
+  customMaxFreqFR = freqIndex.filter(freq => freq >= 40);
+	customMinFreqC = freqIndex.filter(freq => freq < 180);
+  customMaxFreqC = freqIndex.filter(freq => freq >= 40);
+   distFL = 2.75;
+  console.info(`Model specific speed of sound setting: ${sOs} m/s`);
+  console.info(`Model is capable of setting 180Hz crossover: ${!no180}`);
+  console.info(`Model has Cirrus Logic DSP chip: ${isCirrusLogic}`);};
 async function fetchAppPath() {
   if (localAppPath !== null) return Promise.resolve(localAppPath);
   //console.log("Fetching application base path from backend...");
@@ -3671,7 +3635,6 @@ function UpdateMaxFreqFR(maxFreqHzFR, syncSlider) {
       if (index !== -1) document.getElementById('minFreqSliderC').value = index;
     }
   }}
-
 function UpdateMaxFreqC(maxFreqHzC, syncSlider) {
   if (!isNaN(maxFreqHzC)) {
     if (maxFreqHzC < minFreqC) return;
@@ -3682,8 +3645,6 @@ function UpdateMaxFreqC(maxFreqHzC, syncSlider) {
       if (index !== -1) document.getElementById('maxFreqSliderC').value = index; 
     }
   }}
-
-  
 function UpdateenableInversion(disableInv, syncToggle) {
   enableInversion = disableInv;
   if (syncToggle) {
