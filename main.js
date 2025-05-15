@@ -1320,7 +1320,9 @@ function isProcessRunning(processName) {
             cmd = `tasklist /FI "IMAGENAME eq ${processName}" /NH`;
         } else {
             const escapedName = processName.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-            cmd = `pgrep -fil "${escapedName}"`;
+            // Don't use case insensitive on MacOS, since this process match always 
+            // /usr/libexec/ApplicationFirewall/socketfilterfw
+            cmd = `pgrep -fl "${escapedName}"`;
         }
         exec(cmd, (error, stdout, stderr) => {
             if (platform === 'win32') {
