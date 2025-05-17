@@ -1458,7 +1458,7 @@ async function checkREW() {
         const major = parseInt(versionMatch[1], 10);
         const minor = parseInt(versionMatch[2], 10);
         const beta = parseInt(versionMatch[3], 10);
-        const versionOK = major > 5 || (major === 5 && minor > 40) || (major === 5 && minor === 40 && beta >= 78);
+        const versionOK = major > 5 || (major === 5 && minor > 40) || (major === 5 && minor === 40 && beta >= 80);
         if (!versionOK) {
           console.error(`Installed REW version (${versionString}) is outdated and incompatible with A1 Evo! Please install the latest REW Beta from https://www.avnirvana.com/threads/rew-api-beta-releases.12981/.`);
           throwError();
@@ -2019,8 +2019,10 @@ async function setVolumeLevels() {
   indices.push(nSpeakers + 2);
   const dbToPressure = (db) => Math.pow(10, db / 10);
   const pressureToDb = (pressure) => 10 * Math.log10(pressure);
-  const weightedAverages = await Promise.all(indices.map(async (index) => {
+  const weightedAverages = [];
+  for (const index of indices) {
     const response = await fetchSafe(`frequency-response?smoothing=1%2F48&ppo=96`, index);
+    await new Promise((resolve) => setTimeout(resolve, speedDelay / 5));
     const dataResponse = new DataView(Uint8Array.from(atob(response.magnitude), c => c.charCodeAt(0)).buffer);
     const resStartIndex = Math.round(Math.log2(252.156937 / response.startFreq) * response.ppo);
     let weightedSum = 0;
@@ -2029,8 +2031,8 @@ async function setVolumeLevels() {
       const magPressure = dbToPressure(magDb);
       weightedSum += magPressure * resonEar[i];
     }
-    return weightedSum / 535.252389376623;
-  }));
+    weightedAverages.push(weightedSum / 535.252389376623);
+  }
   const meanWeightedPressure = weightedAverages.slice(0, -1).reduce((sum, avg) => sum + avg, 0) / (weightedAverages.length - 1);
   const differences = weightedAverages.map(pressure => pressureToDb(pressure / meanWeightedPressure));
   for (let i = 0; i < indices.length - 1; i++) {
@@ -2156,7 +2158,6 @@ async function sortBass() {
   await generateRoll(lowPass, nSpeakers + 4, true);
   const lfeName = `LFE (${lowPass}Hz LPF)`;
   await fetchREW(nSpeakers + 5, 'PUT', {title: lfeName});
-
   const response = await fetchSafe('impulse-response?windowed=true&normalised=true&samplerate=' + (xt32 ? '48000' : '6000'), nSpeakers + 3);
   const bytes = Uint8Array.from(atob(response.data), c => c.charCodeAt(0));
   const dataView = new DataView(bytes.buffer);
@@ -2215,7 +2216,8 @@ async function alignFronts() {
   console.info("Optimizing crossover, delay, and inversion for Front L/R + Sub...");
   let maxSumPower = -Infinity;
   let minSumPower = Infinity;
-  await Promise.all([sp1, sp2, sw1].map(cleanFilters));
+  const indicesToCleanInThisContext = [sp1, sp2, sw1];
+  for (const sIdx of indicesToCleanInThisContext) await cleanFilters(sIdx);
   const dB2Amp = dB => Math.pow(10, dB / 20);
   const amp2Db = amp => (amp > 1e-15) ? 20 * Math.log10(amp) : -120; // Avoid log(0)
   const toRad = deg => deg * Math.PI / 180;
@@ -2236,12 +2238,8 @@ async function alignFronts() {
   const freqResults = [];
   for (const freq of xoCandidates) {
     let speaker1_postXO, speaker2_postXO;
-    try {
-      [speaker1_postXO, speaker2_postXO] = await Promise.all([fetchResponse(sp1, freq, false, true, 0), fetchResponse(sp2, freq, false, true, 0)]);
-    } catch (e) {
-      console.error(`Error fetching post XO responses for ${freq}Hz:`, e);
-      continue;
-    }
+    speaker1_postXO = await fetchResponse(sp1, freq, false, true, 0);
+    speaker2_postXO = await fetchResponse(sp2, freq, false, true, 0);
     const spk1Complex = [];
     for (let i = 0; i < speaker1_postXO.magnitude.length; i++) {
       const amp = dB2Amp(speaker1_postXO.magnitude[i]);
@@ -2350,7 +2348,7 @@ async function alignFronts() {
       if (customDistance[i] > maxDist) maxDist = customDistance[i];
       console.log(`${commandId[i]}: ${customDistance[i].toFixed(2)}m (${(customDistance[i] * 3.28084).toFixed(2)}ft)`);
     }
-    if ((maxDist - minDist) > 6) console.warn(`A1 Evo used 'extended' maximum speaker distance difference limit in your optimized set up (6m vs 7.35m). DO NOT view or edit distance settings in the receiver's setup menu as it may reset them back to defaults, disrupting calibration! (You may check them in the WEB UI if you need to)`);
+    if ((maxDist - minDist) > 6) console.warn(`A1 Evo used 'extended' maximum speaker distance difference limit in your optimized set up (6m vs 7.35m). DO NOT view or edit distance settings in the receiver's setup menu as it may reset them back to defaults, disrupting calibration - you may check them using the WEB UI!`);
     if (customInvert[nSpeakers + 1]) await postSafe(`${baseUrl}/${nSpeakers + 1}/command`, { command: "Invert" }, "Invert completed");
   } else {
     console.error("Failed to find optimal configuration for front speakers.");
@@ -2397,6 +2395,7 @@ async function fetchResponse(index, xoFreq, isSub = false, usePPO = false, allpa
     });
   }
   await postSafe(`${baseUrl}/${index}/filters`, { filters }, 'Filters set');
+  await new Promise((resolve) => setTimeout(resolve, speedDelay / 5));
   let url = `${baseUrl}/${index}/eq/frequency-response?unit=SPL`;
   if (usePPO) {
     url += '&smoothing=1%2F48&ppo=96';
@@ -2455,7 +2454,7 @@ async function optimizeSpeakers(sp1, sp2 = null) {
     return cubicInterpolate(f, weightFreqs[idx], weightFreqs[idx + 1], weightValues[idx], weightValues[idx + 1], weightSlopes[idx], weightSlopes[idx + 1]);
   };
   console.infoBold(`Optimal crossover frequency analysis for speaker${isPair ? ` pair ${commandId[sp1]} + ${commandId[sp2]}` : ` ${commandId[sp1]}`} with auditory perception weighting:`);
-  await Promise.all(speakerIndices.map(sIdx => cleanFilters(sIdx)));
+  for (const sIdx of speakerIndices) await cleanFilters(sIdx);
   const targetResp = await fetch(`${baseUrl}/${nSpeakers + 2}/frequency-response?smoothing=1%2F48&ppo=96`).then(r => r.json());
   const targetMagArray = b64ToFloat32ArrayBE(targetResp.magnitude);
   const precomputedTargetInfo = [];
@@ -2517,17 +2516,8 @@ async function optimizeSpeakers(sp1, sp2 = null) {
   };
   for (const freq of xoCandidates) {
     let subResponse;
-    try {
-      subResponse = await fetchResponse(sw1, freq, true, true, 0);
-    } catch (e) {
-      console.error(`Error fetching/validating subwoofer for ${freq}Hz: ${e.message}. Skipping this frequency.`);
-      continue;
-    }
+    subResponse = await fetchResponse(sw1, freq, true, true, 0);
     const ppoConstsSub = getPpoIndexingConstants(subResponse, targetResp.ppo);
-    if (!ppoConstsSub.isValid) {
-      console.error(`Failed PPO constants for subwoofer at ${freq}Hz. Skipping this frequency.`);
-      continue;
-    }
     let currentFreq_bestWorstDipVal = Infinity;
     let currentFreq_bestWorstDipQ1 = null;
     let currentFreq_bestWorstDipQ2 = null;
@@ -2537,57 +2527,62 @@ async function optimizeSpeakers(sp1, sp2 = null) {
     if (isPair) {
       for (const q1 of apfQValues) {
         for (const q2 of apfQValues) {
-          try {
-            const [spk1Response, spk2Response] = await Promise.all([fetchResponse(sp1, freq, false, true, q1), fetchResponse(sp2, freq, false, true, q2)]);
-            const ppoConstsSpk1 = getPpoIndexingConstants(spk1Response, targetResp.ppo);
-            const ppoConstsSpk2 = getPpoIndexingConstants(spk2Response, targetResp.ppo);
-            const dip1 = calcDip(spk1Response, subResponse, ppoConstsSpk1, ppoConstsSub);
-            const dip2 = calcDip(spk2Response, subResponse, ppoConstsSpk2, ppoConstsSub);
-            const worstDip = Math.max(dip1, dip2);
-            const sumDip = dip1 + dip2;
-            if (worstDip < currentFreq_bestWorstDipVal) {
-              currentFreq_bestWorstDipVal = worstDip;
-              currentFreq_bestWorstDipQ1 = q1;
-              currentFreq_bestWorstDipQ2 = q2;
-            }
-            if (sumDip < currentFreq_bestSumDipVal) {
-              currentFreq_bestSumDipVal = sumDip;
-              currentFreq_bestSumDipQ1 = q1;
-              currentFreq_bestSumDipQ2 = q2;
-            }
-            if (worstDip < bestWorstDip) {
-              bestWorstDip = worstDip; bestWorstXO = freq; bestWorstq1 = q1; bestWorstq2 = q2;
-            }
-            if (sumDip < bestSumDip) {
-              bestSumDip = sumDip; bestSumXO = freq; bestSumAP1 = q1; bestSumAP2 = q2;
-            }
-          } catch (e) {
-              console.warn(`Skipping ${freq}Hz, Q1=${q1}, Q2=${q2} due to error: ${e.message}`);
+          const spk1Response = await fetchResponse(sp1, freq, false, true, q1);
+          const spk2Response = await fetchResponse(sp2, freq, false, true, q2);
+          const ppoConstsSpk1 = getPpoIndexingConstants(spk1Response, targetResp.ppo);
+          const ppoConstsSpk2 = getPpoIndexingConstants(spk2Response, targetResp.ppo);
+          const dip1 = calcDip(spk1Response, subResponse, ppoConstsSpk1, ppoConstsSub);
+          const dip2 = calcDip(spk2Response, subResponse, ppoConstsSpk2, ppoConstsSub);
+          const worstDip = Math.max(dip1, dip2);
+          const sumDip = dip1 + dip2;
+          if (worstDip < currentFreq_bestWorstDipVal) {
+            currentFreq_bestWorstDipVal = worstDip;
+            currentFreq_bestWorstDipQ1 = q1;
+            currentFreq_bestWorstDipQ2 = q2;
+          }
+          if (sumDip < currentFreq_bestSumDipVal) {
+            currentFreq_bestSumDipVal = sumDip;
+            currentFreq_bestSumDipQ1 = q1;
+            currentFreq_bestSumDipQ2 = q2;
+          }
+          if (worstDip < bestWorstDip) {
+            bestWorstDip = worstDip;
+            bestWorstXO = freq;
+            bestWorstq1 = q1;
+            bestWorstq2 = q2;
+          }
+          if (sumDip < bestSumDip) {
+            bestSumDip = sumDip;
+            bestSumXO = freq;
+            bestSumAP1 = q1;
+            bestSumAP2 = q2;
           }
         }
       }
     } else {
       for (const q1 of apfQValues) {
-        try {
-          const spk1Response = await fetchResponse(sp1, freq, false, true, q1);
-          const ppoConstsSpk1 = getPpoIndexingConstants(spk1Response, targetResp.ppo);
-          const dip1 = calcDip(spk1Response, subResponse, ppoConstsSpk1, ppoConstsSub);
-          if (dip1 < currentFreq_bestWorstDipVal) {
-            currentFreq_bestWorstDipVal = dip1;
-            currentFreq_bestWorstDipQ1 = q1;
-          }
-          if (dip1 < currentFreq_bestSumDipVal) {
-            currentFreq_bestSumDipVal = dip1;
-            currentFreq_bestSumDipQ1 = q1;
-          }
-          if (dip1 < bestWorstDip) {
-            bestWorstDip = dip1; bestWorstXO = freq; bestWorstq1 = q1; bestWorstq2 = null;
-          }
-          if (dip1 < bestSumDip) {
-            bestSumDip = dip1; bestSumXO = freq; bestSumAP1 = q1; bestSumAP2 = null;
-          }
-        } catch (e) {
-          console.warn(`Skipping ${freq}Hz, Q1=${q1} due to error: ${e.message}`);
+        const spk1Response = await fetchResponse(sp1, freq, false, true, q1);
+        const ppoConstsSpk1 = getPpoIndexingConstants(spk1Response, targetResp.ppo);
+        const dip1 = calcDip(spk1Response, subResponse, ppoConstsSpk1, ppoConstsSub);
+        if (dip1 < currentFreq_bestWorstDipVal) {
+          currentFreq_bestWorstDipVal = dip1;
+          currentFreq_bestWorstDipQ1 = q1;
+        }
+        if (dip1 < currentFreq_bestSumDipVal) {
+          currentFreq_bestSumDipVal = dip1;
+          currentFreq_bestSumDipQ1 = q1;
+        }
+        if (dip1 < bestWorstDip) {
+          bestWorstDip = dip1;
+          bestWorstXO = freq;
+          bestWorstq1 = q1;
+          bestWorstq2 = null;
+        }
+        if (dip1 < bestSumDip) {
+          bestSumDip = dip1;
+          bestSumXO = freq;
+          bestSumAP1 = q1;
+          bestSumAP2 = null;
         }
       }
     }
@@ -2733,11 +2728,6 @@ async function generateRoll(freq, index, isSub = false) {
     "slopedBPerOctave": isSub ? 24 : 12,
     "type": isSub ? "Low pass" : "High pass"
   }];
-  /*filter.push(
-    allPass[index]
-      ? {index: 20, enabled: true, isAuto: false, frequency: freq, q: 0.707106781186548, type: "All pass"}
-      : {index: 20, type: "None"}
-  );*/
   await postSafe(`${baseUrl}/${index}/filters`, {filters: filter}, "Filters set");
   await new Promise((resolve) => setTimeout(resolve, speedDelay));
   const rollResponse = await postNext('Generate predicted measurement', index);
@@ -2747,7 +2737,7 @@ async function multipleSubs(indices) {
   function generatePermutations(arr) {
     const permutations = [];
     const n = arr.length;
-    if (n <= 1) {return [arr];}
+    if (n <= 1) return [arr];
     for (let i = 0; i < n; i++) {
       for (let j = i + 1; j < n; j++) {
         const pair = [arr[i], arr[j]];
@@ -2900,7 +2890,8 @@ async function optimizeSubs(i1, i2, timeShiftMinMs, timeShiftMaxMs, fMax) {
   const dB2Amp = dB => Math.pow(10, dB / 20);
   const toRadians = deg => deg * Math.PI / 180;
   const twoPi = 2 * Math.PI;
-  const [sub1, sub2] = await Promise.all([fetchSub(i1), fetchSub(i2)]);
+  const sub1 = await fetchSub(i1);
+  const sub2 = await fetchSub(i2);
   const {startFreq, freqStep, magnitude: mag1, phase: ph1} = sub1;
   const {magnitude: mag2, phase: ph2} = sub2;
   const lowerFreq = 16, upperFreq = fMax;
@@ -2956,7 +2947,8 @@ async function optimizeSubs(i1, i2, timeShiftMinMs, timeShiftMaxMs, fMax) {
   return {bestDelay, bestInvert, finalScore};}
 async function cleanFilters(index) {
   const filters = Array.from({length: 22}, (_, i) => ({index: i + 1, type: "None", enabled: true, isAuto: true}));
-  await postSafe(`${baseUrl}/${index}/filters`, { filters }, "Filters set");}
+  await postSafe(`${baseUrl}/${index}/filters`, { filters }, "Filters set");
+  await new Promise((resolve) => setTimeout(resolve, speedDelay / 5));}
 async function fixSubs4REW() {
   console.info(`Reversing 'Linkwitz Riley 250Hz 24dB/octave lowpass filter' applied by the AVR to REW subwoofer measurements...`);
   const antiLPF = {
@@ -3476,7 +3468,7 @@ function handleManualConfigFileSelect(event) {
       else console.warn("handleManualConfigFileSelect: Element 'measurementChoice' not found.");
       console.log("handleManualConfigFileSelect: Attempting to call readContents()...");
       readContents();
-      console.log("Manual config cile select mode activated!");
+      console.log("Manual config file select mode activated!");
     } catch (parseOrProcessError) {
       console.error("handleManualConfigFileSelect: Error during parsing or processing:", parseOrProcessError);
       if (manualErrorDiv) {
