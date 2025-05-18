@@ -12,4 +12,52 @@ AVRs must be compatible with MultEQ Mobile app (~2016 onward), though the app it
 
 Recommended to follow [Quick Start Guides (Windows/Mac)](https://drive.google.com/drive/folders/1u1-6Im5VX5saUslNFTckukCIYbsgR439)
 
+### Getting Started
+
+#### Prerequisites
+
+- [Git](https://git-scm.com/downloads) - Version control system
+- [Node.js](https://nodejs.org/) - JavaScript runtime (v18 or later recommended)
+- [npm](https://www.npmjs.com/) - Package manager (included with Node.js)
+
+##### Linux Installation Example (Debian/Ubuntu)
+
+```bash
+# Update package lists
+sudo apt update
+
+# Install Git
+sudo apt install git
+
+# Install Node.js and npm using NodeSource repository
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt install -y nodejs
+
+# Verify installations
+git --version
+node --version
+npm --version
+```
+
+#### Clone the Repository
+
+```bash
+git clone https://github.com/ObsessiveCompulsiveAudiophile/A1EvoAcoustica.git
+cd A1EvoAcoustica
+```
+
+#### Install Dependencies
+
+```bash
+npm ci
+```
+
+#### Start the Program
+
+```bash
+npm start
+```
+
+This will launch the A1 Evo Acoustica tool.
+
 [LICENSE](./LICENSE)
