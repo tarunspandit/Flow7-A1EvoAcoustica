@@ -3577,7 +3577,7 @@ function readContents() {
   const no180 = modelsNo180xo.includes(model);
   if (!no180) freqIndex.splice(8, 0, extraFreq);
   if (!xt32) {
-    const targetFreq = xt ? 100 : 120;
+    const targetFreq = xt ? 90 : 60;
     const startIndex = freqIndex.indexOf(targetFreq);
     freqIndex = freqIndex.slice(startIndex);
   }
