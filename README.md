@@ -9,8 +9,8 @@ AVRs must be compatible with MultEQ Mobile app (~2016 onward), though the app it
 * [YouTube Guide](https://www.youtube.com/watch?v=wQHF0-MOMMY)
 * [Downloads](https://drive.google.com/drive/folders/1O-KcP9jfBYZePW9lGPE2sbqrx_x96Vrr)
 * [Discussion thread](https://www.avsforum.com/threads/acoustica-latest-and-greatest-from-oca-for-denon-marantz-only.3324025/)
-
-Recommended to follow [Quick Start Guides (Windows/Mac)](https://drive.google.com/drive/folders/1u1-6Im5VX5saUslNFTckukCIYbsgR439)
+* [Quick Guide Windows](https://github.com/Krytos/A1EvoAcoustica/blob/patch-1/Docs/quick-guide-windows)
+* [Quick Guide Mac](https://github.com/Krytos/A1EvoAcoustica/blob/patch-1/Docs/quick-guide-mac)
 
 ### Getting Started
 
