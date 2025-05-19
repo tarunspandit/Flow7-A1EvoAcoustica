@@ -744,7 +744,7 @@ and noninfringement. Use at your own risk.
   </div></div>
 </script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/14.0.1/math.min.js"></script><script>
 
-const evoVersion = "5.4";
+const evoVersion = "5.5";
 const baseUrl = 'http://localhost:4735/measurements', speedDelay = 255, maxDistanceLimit = 7.35;
 let micCalFile = new Array(16384).fill(0), audioCtx = null;
 let jsonName = 'receiver_config.avr';
@@ -1465,7 +1465,7 @@ async function checkREW() {
         const major = parseInt(versionMatch[1], 10);
         const minor = parseInt(versionMatch[2], 10);
         const beta = parseInt(versionMatch[3], 10);
-        const versionOK = major > 5 || (major === 5 && minor > 40) || (major === 5 && minor === 40 && beta >= 81);
+        const versionOK = major > 5 || (major === 5 && minor > 40) || (major === 5 && minor === 40 && beta >= 82);
         if (!versionOK) {
           console.error(`Installed REW version (${versionString}) is outdated and incompatible with A1 Evo! Please install the latest REW Beta from https://www.avnirvana.com/threads/rew-api-beta-releases.12981/.`);
           throwError();
@@ -2678,7 +2678,7 @@ async function refResults(){
   await postNext('Smooth', ind, {smoothing: "Var"});
   await new Promise((resolve) => setTimeout(resolve, speedDelay / 4));}
 async function refFilter(index, orgIndex) {
-  let sampleCount = xt32 ? 16321 : (xt ? 512 : 128);
+  let sampleCount = xt32 ? 16321 : (xt ? 512 : 1024);
   const rightWindowWidth = sampleCount / 48;
   await postNext('Smooth', index, {smoothing: "Var"});
   const mp = await postNext('Minimum phase version', index, {'include cal': true, 'append lf tail': false, 'append hf tail': false, 'frequency warping': false, 'replicate data': true});
@@ -2696,7 +2696,7 @@ async function refFilter(index, orgIndex) {
   await new Promise(resolve => setTimeout(resolve, speedDelay));
   await postSafe(`http://localhost:4735/eq/match-target-settings`, {startFrequency: 10, endFrequency: 20000, individualMaxBoostdB: 3, overallMaxBoostdB: 0, flatnessTargetdB: 1, varyQAbove200Hz: true, allowLowShelf: false, allowHighShelf: true, highShelfMin: -3, highShelfMax: 3}, 'Update processed');
   await new Promise(resolve => setTimeout(resolve, speedDelay / 10));
-  await postSafe(`http://localhost:4735/eq/match-target-settings`, {startFrequency: 200, endFrequency: 12500, individualMaxBoostdB: 3, overallMaxBoostdB: 0, flatnessTargetdB: 1, varyQAbove200Hz: true, allowLowShelf: false, allowHighShelf: true, highShelfMin: -3, highShelfMax: 3}, 'Update processed');
+  await postSafe(`http://localhost:4735/eq/match-target-settings`, {startFrequency: 200, endFrequency: (!xt32 && !xt) ? 3000 : 12500, individualMaxBoostdB: 3, overallMaxBoostdB: 0, flatnessTargetdB: 1, varyQAbove200Hz: true, allowLowShelf: false, allowHighShelf: true, highShelfMin: -3, highShelfMax: 3}, 'Update processed');
   await new Promise(resolve => setTimeout(resolve, speedDelay / 4));
   await postSafe(`${baseUrl}/${mpIndex + 3}/room-curve-settings`, {addRoomCurve: false}, 'Update processed');
   await new Promise(resolve => setTimeout(resolve, speedDelay / 4));
@@ -2744,17 +2744,20 @@ async function refFilter(index, orgIndex) {
     sumPressure += 10 ** (magValue / 10);
     count++;
   }
-  const cm = customMargin[orgIndex] + 5 * Math.log10(sumPressure / count);
-  const response = await fetchSafe('impulse-response?windowed=true&normalised=true&samplerate=48000', mpIndex + 2);
+  const cm = (!xt32 && !xt) ? customMargin[orgIndex] : customMargin[orgIndex] + 5 * Math.log10(sumPressure / count);
+  const response = await fetchSafe('impulse-response?windowed=true&normalised=true&samplerate=' + ((xt32 || xt) ? '48000' : '6000'), mpIndex + 2);
   const bytes = Uint8Array.from(atob(response.data), c => c.charCodeAt(0));
   const dataView = new DataView(bytes.buffer);
+  if (!xt32 && !xt) sampleCount /= 8;
   const filter = new Array(sampleCount);
   for (let i = 0; i < sampleCount; i++) {
     const invertFactor = customInvert[orgIndex] ? -1.0 : 1.0;
     filter[i] = dataView.getFloat32(i * 4, false) * 0.354813398972832 * 10 ** (cm / 20) * invertFactor;
   }
   customFilter[orgIndex] = filter;
-  await postDelete(mpIndex + 1); await postDelete(mpIndex); await postDelete(index);
+  await postDelete(mpIndex + 1);
+  await postDelete(mpIndex);
+  await postDelete(index);
   return ;}
 async function generateRoll(freq, index, isSub = false) {
   if (freq === 0) {
