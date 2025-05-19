@@ -1222,7 +1222,7 @@ async function mainMenu() {
     }}
 async function initializeApp() {
     console.log('--------------------------------');
-    console.log('  A1 Evo Acoustica v5.3 by OCA');
+    console.log('  A1 Evo Acoustica v5.4 by OCA');
     console.log('--------------------------------');
     mainServer = http.createServer((req, res) => {
         const requestUrl = new URL(req.url, `http://${req.headers.host}`);
@@ -1320,8 +1320,6 @@ function isProcessRunning(processName) {
             cmd = `tasklist /FI "IMAGENAME eq ${processName}" /NH`;
         } else {
             const escapedName = processName.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-            // Don't use case insensitive on MacOS, since this process match always 
-            // /usr/libexec/ApplicationFirewall/socketfilterfw
             cmd = `pgrep -fl "${escapedName}"`;
         }
         exec(cmd, (error, stdout, stderr) => {
