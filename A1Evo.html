@@ -744,7 +744,7 @@ and noninfringement. Use at your own risk.
   </div></div>
 </script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/14.0.1/math.min.js"></script><script>
 
-const evoVersion = "5.5";
+const evoVersion = "5.6";
 const baseUrl = 'http://localhost:4735/measurements', speedDelay = 255, maxDistanceLimit = 7.35;
 let micCalFile = new Array(16384).fill(0), audioCtx = null;
 let jsonName = 'receiver_config.avr';
@@ -2237,11 +2237,12 @@ async function alignFronts() {
   for (let ts = msNeg; ts <= msPos; ts += delayStep) delayValues.push(ts);
   const inversionConfigs = [{subInverted: false}, {subInverted: true}];
   let apfQValues = [0, 0.5773502692, 0.7071067812, 1.0, 1.414213562];
-  if (usePPO) apfQValues = [0];
-  const subAmplitudeScalingFactor = 2; //Assuming mono bass
+  if (usePPO || (!xt32 && !xt)) apfQValues = [0];
+  const subAmplitudeScalingFactor = !usePPO ? 2 : 1;
   console.info(`Using subwoofer amplitude scaling factor: ${subAmplitudeScalingFactor.toFixed(1)} (${(20 * Math.log10(subAmplitudeScalingFactor)).toFixed(3)} dB)`);
   console.info("Brute force searching optimal configuration, please be patient...");
-  const optimizationStartFreq = 20, optimizationEndFreq = 320;
+  const optimizationStartFreq = 20;
+  const optimizationEndFreq = !usePPO ? 320 : 250;
   let bestOverallSumPower = -Infinity, bestOverallConfig = null;
   const freqResults = [];
   for (const freq of xoCandidates) {
@@ -2462,8 +2463,9 @@ async function fetchResponse(index, xoFreq, isSub = false, uPPO = false, allpass
     };
   }}
 async function optimizeSpeakers(sp1, sp2 = null) {
+  const isLimitedAVR = !xt32 && !xt;
   let apfQValues = [0, 0.5773502692, 0.7071067812, 1.0, 1.414213562];
-  if (usePPO) apfQValues = [0];
+  if (usePPO || isLimitedAVR) apfQValues = [0];
   const isPair = sp2 !== null;
   const sw1 = nSpeakers + 1;
   const speakerIndices = isPair ? [sp1, sp2, sw1] : [sp1, sw1];
@@ -2537,7 +2539,7 @@ async function optimizeSpeakers(sp1, sp2 = null) {
     if (!ppoConstsSpk.isValid || !ppoConstsSub.isValid) return Infinity;
     for (const targetPoint of precomputedTargetInfo) {
       if (!targetPoint) continue;
-      const { weight, targetMagValue, targetIndex } = targetPoint;
+      const {weight, targetMagValue, targetIndex} = targetPoint;
       const rawIdxSpk = ppoConstsSpk.A + targetIndex * ppoConstsSpk.B;
       const idxSpk = Math.min(Math.max(Math.round(rawIdxSpk), 0), ppoConstsSpk.magLength - 1);
       const rawIdxSub = ppoConstsSub.A + targetIndex * ppoConstsSub.B;
@@ -2549,7 +2551,8 @@ async function optimizeSpeakers(sp1, sp2 = null) {
       const imagSum = spkAmp * Math.sin(spkPhaseRad) + subAmp * Math.sin(subPhaseRad);
       const powerSum = realSum * realSum + imagSum * imagSum;
       const combinedSPL = powerSum > MIN_AMP_SQ ? 10 * Math.log10(powerSum) : -180;
-      const delta = targetMagValue - combinedSPL;
+      let delta = targetMagValue - combinedSPL;
+      if (isLimitedAVR) delta = Math.abs(delta);
       if (delta > 0) totalWeightedDip += delta * weight;
       validPoints++;
     }
@@ -3574,7 +3577,7 @@ function readContents() {
   const no180 = modelsNo180xo.includes(model);
   if (!no180) freqIndex.splice(8, 0, extraFreq);
   if (!xt32) {
-    const targetFreq = xt ? 100 : 120;
+    const targetFreq = xt ? 90 : 120;
     const startIndex = freqIndex.indexOf(targetFreq);
     freqIndex = freqIndex.slice(startIndex);
   }

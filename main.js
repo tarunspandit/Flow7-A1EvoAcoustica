@@ -1222,7 +1222,7 @@ async function mainMenu() {
     }}
 async function initializeApp() {
     console.log('--------------------------------');
-    console.log('  A1 Evo Acoustica v5.5 by OCA');
+    console.log('  A1 Evo Acoustica v5.6 by OCA');
     console.log('--------------------------------');
     mainServer = http.createServer((req, res) => {
         const requestUrl = new URL(req.url, `http://${req.headers.host}`);
