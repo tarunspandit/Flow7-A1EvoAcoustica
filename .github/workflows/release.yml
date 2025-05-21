@@ -1,21 +1,21 @@
 name: Create Release on Version Bump
 
 on:
-  workflow_dispatch: # Allows manual triggering
+  workflow_dispatch:
   push:
     branches:
-      - main # Or master, or your default branch
+      - main
     paths:
-      - "package.json" # Only run if package.json changes
+      - "package.json"
 
 jobs:
   check-version-and-release:
     name: Check Version and Release
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Needed to push tags and create releases
+      contents: write
 
-    outputs: # Define outputs to be used by other jobs or for conditional logic if needed later
+    outputs:
       new_version: ${{ steps.check_version.outputs.new_version }}
       should_release: ${{ steps.check_version.outputs.should_release }}
       tag_name: ${{ steps.check_version.outputs.tag_name }}
@@ -24,8 +24,7 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2 # Fetches the current and previous commit
-
+          fetch-depth: 2
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
@@ -74,7 +73,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # --- Build and Release Steps (conditional on version change) ---
-      # These steps will only run if steps.check_version.outputs.should_release == 'true'
 
       - name: Set up Node.js
         if: steps.check_version.outputs.should_release == 'true'
@@ -101,7 +99,6 @@ jobs:
 
       - name: Build Windows executable
         if: steps.check_version.outputs.should_release == 'true'
-        # The 'build-windows' script from package.json uses pwsh, which is available on ubuntu-latest
         run: npm run build-windows
 
       - name: Create Release Entry
@@ -159,6 +156,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./a1-evo-acoustica-win-x64.exe # Assuming pkg adds .exe for windows targets
+          asset_path: ./a1-evo-acoustica-win-x64.exe
           asset_name: a1-evo-acoustica-win-x64.exe
           asset_content_type: application/vnd.microsoft.portable-executable
