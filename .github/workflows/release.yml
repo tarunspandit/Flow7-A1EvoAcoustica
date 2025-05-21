@@ -1,4 +1,4 @@
-name: Create Release on Version Bump
+name: Create Release
 
 on:
   workflow_dispatch:
@@ -7,117 +7,147 @@ on:
       - main
     paths:
       - "package.json"
-
 jobs:
-  check-version-and-release:
-    name: Check Version and Release
+  release:
+    name: Build and Release
     runs-on: ubuntu-latest
     permissions:
       contents: write
 
     outputs:
-      new_version: ${{ steps.check_version.outputs.new_version }}
-      should_release: ${{ steps.check_version.outputs.should_release }}
-      tag_name: ${{ steps.check_version.outputs.tag_name }}
+      new_version: ${{ steps.get_version_info.outputs.new_version }}
+      should_release: ${{ steps.get_version_info.outputs.should_release }}
+      tag_name: ${{ steps.get_version_info.outputs.tag_name }}
 
     steps:
       - name: Check out code
         uses: actions/checkout@v4
         with:
           fetch-depth: 2
+
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Check for version change in package.json
-        id: check_version
+      - name: Get Version Info and Determine Release Action
+        id: get_version_info
         run: |
-          echo "Checking for version change in package.json..."
-          # Get current version
-          # Use `|| echo ""` in case package.json is malformed or version field is missing,
-          # though a build would likely fail later anyway.
+          echo "Event type: ${{ github.event_name }}"
           current_version=$(jq -r .version package.json || echo "")
-          echo "Current version: $current_version"
-
-          # Get previous version
-          # Use `git show HEAD~1:package.json` to get the content of package.json from the previous commit
-          # Handle error if HEAD~1:package.json doesn't exist (e.g., first commit in repo with package.json)
-          previous_version=$(git show HEAD~1:package.json 2>/dev/null | jq -r .version || echo "")
-          echo "Previous version: $previous_version"
 
           if [ -z "$current_version" ]; then
-            echo "Could not extract current version from package.json. Exiting."
+            echo "::error file=package.json::Could not extract current version from package.json."
             echo "should_release=false" >> $GITHUB_OUTPUT
-            exit 0 # Or exit 1 to fail the workflow
+            exit 1
           fi
+          echo "Current package.json version: $current_version"
+          TAG_NAME="v$current_version"
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "new_version=$current_version" >> $GITHUB_OUTPUT
 
-          if [ "$current_version" != "$previous_version" ]; then
-            echo "Version changed from $previous_version to $current_version. Proceeding with release."
-            echo "new_version=$current_version" >> $GITHUB_OUTPUT
-            echo "tag_name=v$current_version" >> $GITHUB_OUTPUT
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "Manual trigger (workflow_dispatch). Proceeding with release for version $current_version."
             echo "should_release=true" >> $GITHUB_OUTPUT
-          else
-            echo "Version $current_version has not changed. No release will be created."
-            echo "should_release=false" >> $GITHUB_OUTPUT
+          else # Push event
+            echo "Push event. Checking for version change."
+            previous_version=$(git show HEAD~1:package.json 2>/dev/null | jq -r .version || echo "")
+            echo "Previous package.json version: $previous_version"
+
+            if [ "$current_version" != "$previous_version" ]; then
+              echo "Version changed from '$previous_version' to '$current_version'. Proceeding with release."
+              echo "should_release=true" >> $GITHUB_OUTPUT
+            else
+              echo "Version '$current_version' has not changed. No release will be created for this push."
+              echo "should_release=false" >> $GITHUB_OUTPUT
+            fi
           fi
 
-      - name: Create Git Tag
-        if: steps.check_version.outputs.should_release == 'true'
-        run: |
-          TAG_NAME="v${{ steps.check_version.outputs.new_version }}"
-          echo "Creating and pushing tag: $TAG_NAME"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "$TAG_NAME"
-          git push origin "$TAG_NAME"
+      - name: Force Update Tag and Delete Existing Release (on manual dispatch)
+        if: steps.get_version_info.outputs.should_release == 'true' && github.event_name == 'workflow_dispatch'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ steps.get_version_info.outputs.tag_name }}
+        run: |
+          echo "Manual dispatch: Force updating tag $TAG_NAME and managing existing release."
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      # --- Build and Release Steps (conditional on version change) ---
+          echo "Forcing update of tag $TAG_NAME to current commit..."
+          git tag -f "$TAG_NAME" # Force create/update local tag to point to current commit
+          git push origin "$TAG_NAME" --force # Force push (update) remote tag
 
+          echo "Checking for existing release for tag $TAG_NAME and deleting if found..."
+          # Using gh CLI to delete the release.
+          # Check if release exists to avoid error from `gh release delete` if it doesn't.
+          if gh release view "$TAG_NAME" > /dev/null 2>&1; then
+            echo "Existing release for tag $TAG_NAME found. Deleting it..."
+            gh release delete "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --yes
+            echo "Existing release for tag $TAG_NAME deleted."
+          else
+            echo "No existing release found for tag $TAG_NAME."
+          fi
+
+      - name: Create Git Tag (on push)
+        if: steps.get_version_info.outputs.should_release == 'true' && github.event_name == 'push'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME="${{ steps.get_version_info.outputs.tag_name }}"
+          echo "Push event: Creating new tag $TAG_NAME"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "$TAG_NAME" # This will fail if the tag already exists, which is desired for a new version push
+          git push origin "$TAG_NAME"
+
+      # --- Build Steps (Common for both triggers if should_release is true) ---
       - name: Set up Node.js
-        if: steps.check_version.outputs.should_release == 'true'
+        if: steps.get_version_info.outputs.should_release == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: "18"
           cache: "npm"
 
       - name: Install dependencies
-        if: steps.check_version.outputs.should_release == 'true'
+        if: steps.get_version_info.outputs.should_release == 'true'
         run: npm ci
 
       - name: Build Linux executable
-        if: steps.check_version.outputs.should_release == 'true'
+        if: steps.get_version_info.outputs.should_release == 'true'
         run: npm run build-linux
 
       - name: Build MacOS x64 executable
-        if: steps.check_version.outputs.should_release == 'true'
+        if: steps.get_version_info.outputs.should_release == 'true'
         run: npm run build-macos-x64
 
       - name: Build MacOS arm64 executable
-        if: steps.check_version.outputs.should_release == 'true'
+        if: steps.get_version_info.outputs.should_release == 'true'
         run: npm run build-macos-arm64
 
       - name: Build Windows executable
-        if: steps.check_version.outputs.should_release == 'true'
+        if: steps.get_version_info.outputs.should_release == 'true'
         run: npm run build-windows
 
+      # --- Release Creation Step (Common for both triggers if should_release is true) ---
       - name: Create Release Entry
-        if: steps.check_version.outputs.should_release == 'true'
+        if: steps.get_version_info.outputs.should_release == 'true'
         id: create_release
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ steps.check_version.outputs.tag_name }}
-          release_name: Release ${{ steps.check_version.outputs.tag_name }}
+          tag_name: ${{ steps.get_version_info.outputs.tag_name }}
+          release_name: Release ${{ steps.get_version_info.outputs.tag_name }}
           body: |
-            Automated release for version ${{ steps.check_version.outputs.new_version }}
+            Automated release for version ${{ steps.get_version_info.outputs.new_version }}
+            Triggered by: ${{ github.event_name }}
+            Commit: ${{ github.sha }}
+
             Contains Linux, MacOS (x64, arm64), and Windows (x64) executables.
           draft: false
           prerelease: false
 
+      # --- Asset Upload Steps (Common for both triggers if should_release is true) ---
       - name: Upload Linux Asset to Release
-        if: steps.check_version.outputs.should_release == 'true'
+        if: steps.get_version_info.outputs.should_release == 'true'
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -128,7 +158,7 @@ jobs:
           asset_content_type: application/octet-stream
 
       - name: Upload MacOS x64 Asset to Release
-        if: steps.check_version.outputs.should_release == 'true'
+        if: steps.get_version_info.outputs.should_release == 'true'
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -139,7 +169,7 @@ jobs:
           asset_content_type: application/octet-stream
 
       - name: Upload MacOS arm64 Asset to Release
-        if: steps.check_version.outputs.should_release == 'true'
+        if: steps.get_version_info.outputs.should_release == 'true'
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -150,7 +180,7 @@ jobs:
           asset_content_type: application/octet-stream
 
       - name: Upload Windows Asset to Release
-        if: steps.check_version.outputs.should_release == 'true'
+        if: steps.get_version_info.outputs.should_release == 'true'
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
