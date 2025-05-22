@@ -2865,7 +2865,7 @@ async function processSubConfig(subIndices) {
     await postSafe("http://localhost:4735/alignment-tool/index-b", indexB, "selected as measurement B");
     await postSafe("http://localhost:4735/alignment-tool/max-negative-delay", -maxPositiveDelay, "Maximum negative delay set");
     await postSafe("http://localhost:4735/alignment-tool/max-positive-delay", -maxNegativeDelay, "Maximum positive delay set");
-    const {bestDelay, bestInvert, finalScore} = await optimizeSubs(indexA, indexB, maxNegativeDelay, maxPositiveDelay, 250, i);
+    const {bestDelay, bestInvert, finalScore} = await optimizeSubs(indexA, indexB, maxNegativeDelay, maxPositiveDelay, 250);
     await postSafe(`http://localhost:4735/alignment-tool/delay-b`, bestDelay, `Value set`);
     await postSafe(`http://localhost:4735/alignment-tool/invert-b`, bestInvert, `Value set`);
     const alignedSum = await postAlign('Aligned sum');
@@ -2894,7 +2894,7 @@ async function processSubConfig(subIndices) {
     indexA = newIndex;
   }
   return {newIndex, finalScore, mSecs: mSec.slice(-subIndices.length), isInverteds: customInvert.slice(-subIndices.length)};}
-async function optimizeSubs(i1, i2, timeShiftMinMs, timeShiftMaxMs, fMax, stage) {
+async function optimizeSubs(i1, i2, timeShiftMinMs, timeShiftMaxMs, fMax) {
   async function fetchSub(index) {
     const subResponse = await fetch(`${baseUrl}/${index}/frequency-response?unit=SPL&smoothing=None`);
     const response = await subResponse.json();
@@ -2969,7 +2969,7 @@ async function optimizeSubs(i1, i2, timeShiftMinMs, timeShiftMaxMs, fMax, stage)
   }
   const avgPower = bestConfig.sumPower / nIndices;
   const overallMag = 20 * Math.log10(avgPower);
-  console.infoUpdate(`Analysed permutation: Required time delay: ${(bestConfig.timeShift * 1000).toFixed(3)} ms, inversion required: ${bestConfig.sub2Inverted}, estimated amplitude: ${(overallMag / (stage + 1)).toFixed(2)} dB`);
+  console.infoUpdate(`Analysed permutation: Required time delay: ${(bestConfig.timeShift * 1000).toFixed(3)} ms, inversion required: ${bestConfig.sub2Inverted}, estimated linear amplitude: ${overallMag.toFixed(2)} dB`);
   const bestDelay = -bestConfig.timeShift * 1000;
   const bestInvert = bestConfig.sub2Inverted;
   const finalScore = overallMag;
