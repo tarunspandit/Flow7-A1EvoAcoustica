@@ -385,6 +385,7 @@ and noninfringement. Use at your own risk.
     align-items: center;
     gap: 6px;
     margin-top: 1rem;
+	margin-bottom: 2rem;  /* Added this line */
     font-size: 1rem;
   }
   .rolloff-controls {
@@ -598,11 +599,6 @@ and noninfringement. Use at your own risk.
     transform: translateY(-2px);
     box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
   }
-  @media screen and (max-width: 1079px) {
-    .crossover-sliders{
-       display:block !important;
-    }
-  }
 </style>
 </head>
 <body>
@@ -766,7 +762,8 @@ and noninfringement. Use at your own risk.
   <label class="rolloff-text" for="lpf4lfeSlopeSelect">&nbsp;LP freq:</label>
   <select id="lpf4lfeSlopeSelect" disabled></select>
   </div>
-  </div> 
+  </div>
+  </div>
   <div class="link-container">
   <a href="https://www.avnirvana.com/threads/rew-api-beta-releases.12981/" target="_blank" class="tooltip-link">Download latest REW Beta<span class="link-tooltip">Room EQ Wizard Beta version with API support</span>
   </a>
@@ -780,11 +777,12 @@ and noninfringement. Use at your own risk.
   </a>
   </div>
   </div>
+  </div>
   <div id="logContainer">
   </div></div>
 </script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/14.0.1/math.min.js"></script><script>
 
-const evoVersion = "6.1";
+const evoVersion = "6.2";
 const baseUrl = 'http://localhost:4735/measurements', speedDelay = 255, maxDistanceLimit = 7.35;
 let micCalFile = new Array(16384).fill(0), audioCtx = null;
 let jsonName = 'receiver_config.avr';
@@ -2270,7 +2268,7 @@ async function alignFronts() {
   for (let ts = msNeg; ts <= msPos; ts += delayStep) delayValues.push(ts);
   const inversionConfigs = [{subInverted: false}, {subInverted: true}];
   let apfQValues = [0, 0.5773502692, 0.7071067812, 1.0, 1.414213562];
-  if (!noAllpass || (!xt32 && !xt)) apfQValues = [0];
+  if (!noAllpass) apfQValues = [0];
   const subAmplitudeScalingFactor = 2;
   console.info(`Using subwoofer amplitude scaling factor: ${subAmplitudeScalingFactor.toFixed(1)} (${(20 * Math.log10(subAmplitudeScalingFactor)).toFixed(3)} dB)`);
   console.info("Brute force searching optimal configuration, please be patient...");
@@ -2403,12 +2401,15 @@ function b64ToFloat32ArrayBE(base64) {
   const len = binaryStr.length;
   const buffer = new ArrayBuffer(len);
   const uint8 = new Uint8Array(buffer);
-  for (var i = 0; i < len; i++) uint8[i] = binaryStr.charCodeAt(i);
-  const floatCount = Math.floor(len / 4);
-  const float32Array = new Float32Array(floatCount);
-  const dataView = new DataView(buffer);
-  for (let i = 0; i < floatCount; i++) float32Array[i] = dataView.getFloat32(i * 4, false);
-  return float32Array;}
+  for (let i = 0; i < len; i++) uint8[i] = binaryStr.charCodeAt(i);
+  const swapped = new Uint8Array(len);
+  for (let i = 0; i < len; i += 4) {
+    swapped[i]     = uint8[i + 3];
+    swapped[i + 1] = uint8[i + 2];
+    swapped[i + 2] = uint8[i + 1];
+    swapped[i + 3] = uint8[i];
+  }
+  return new Float32Array(swapped.buffer);}
 async function fetchResponse(index, xoFreq, isSub = false, uPPO = false, allpassQ = 0) {
   const filters = [{
     index: 21,
@@ -2798,7 +2799,7 @@ async function multipleSubs(indices) {
   subMinTrim -= minBoost;
   console.info(`Remaining subwoofer volume adjustment range: ${subMinTrim}dB - +${subMaxTrim}dB`);
   const allPermutations = generatePermutations(indices);
-  if(nSubs >= 3) console.info(`This will take a little while...`);
+  if(nSubs >= 3) console.info(`Deploying multiple subwoofer precision alignment protocol...`);
   let bestFinalScore = -Infinity;
   let bestAlignedSumIndex = null;
   let bestmSecs = null;
@@ -2864,7 +2865,7 @@ async function processSubConfig(subIndices) {
     await postSafe("http://localhost:4735/alignment-tool/index-b", indexB, "selected as measurement B");
     await postSafe("http://localhost:4735/alignment-tool/max-negative-delay", -maxPositiveDelay, "Maximum negative delay set");
     await postSafe("http://localhost:4735/alignment-tool/max-positive-delay", -maxNegativeDelay, "Maximum positive delay set");
-    const {bestDelay, bestInvert, finalScore} = await optimizeSubs(indexA, indexB, maxNegativeDelay, maxPositiveDelay, 250);
+    const {bestDelay, bestInvert, finalScore} = await optimizeSubs(indexA, indexB, maxNegativeDelay, maxPositiveDelay, 250, i);
     await postSafe(`http://localhost:4735/alignment-tool/delay-b`, bestDelay, `Value set`);
     await postSafe(`http://localhost:4735/alignment-tool/invert-b`, bestInvert, `Value set`);
     const alignedSum = await postAlign('Aligned sum');
@@ -2893,7 +2894,7 @@ async function processSubConfig(subIndices) {
     indexA = newIndex;
   }
   return {newIndex, finalScore, mSecs: mSec.slice(-subIndices.length), isInverteds: customInvert.slice(-subIndices.length)};}
-async function optimizeSubs(i1, i2, timeShiftMinMs, timeShiftMaxMs, fMax) {
+async function optimizeSubs(i1, i2, timeShiftMinMs, timeShiftMaxMs, fMax, stage) {
   async function fetchSub(index) {
     const subResponse = await fetch(`${baseUrl}/${index}/frequency-response?unit=SPL&smoothing=None`);
     const response = await subResponse.json();
@@ -2913,8 +2914,7 @@ async function optimizeSubs(i1, i2, timeShiftMinMs, timeShiftMaxMs, fMax) {
         dst[i + 2] = src[i + 1];
         dst[i + 3] = src[i];
       }
-      return new Float32Array(swappedBuffer);
-    };
+      return new Float32Array(swappedBuffer);};
     return {startFreq, freqStep, phase: base64ToFloat32ArrayBigEndian(phase), magnitude: base64ToFloat32ArrayBigEndian(magnitude)};}
   const dB2Amp = dB => Math.pow(10, dB / 20);
   const toRadians = deg => deg * Math.PI / 180;
@@ -2968,8 +2968,8 @@ async function optimizeSubs(i1, i2, timeShiftMinMs, timeShiftMaxMs, fMax) {
     if (bestForInversion.sumPower > bestConfig.sumPower) bestConfig = bestForInversion;
   }
   const avgPower = bestConfig.sumPower / nIndices;
-  const overallMag = 10 * Math.log10(avgPower);
-  console.infoUpdate(`Analysing permutation: Required time delay: ${(bestConfig.timeShift * 1000).toFixed(3)} ms, inversion required: ${bestConfig.sub2Inverted}, estimated sound pressure: ${overallMag.toFixed(2)} dB`);
+  const overallMag = 20 * Math.log10(avgPower);
+  console.infoUpdate(`Analysed permutation: Required time delay: ${(bestConfig.timeShift * 1000).toFixed(3)} ms, inversion required: ${bestConfig.sub2Inverted}, estimated amplitude: ${(overallMag / (stage + 1)).toFixed(2)} dB`);
   const bestDelay = -bestConfig.timeShift * 1000;
   const bestInvert = bestConfig.sub2Inverted;
   const finalScore = overallMag;
@@ -3562,7 +3562,7 @@ function readContents() {
   const no180 = modelsNo180xo.includes(model);
   if (!no180) freqIndex.splice(8, 0, extraFreq);
   if (!xt32) {
-    const targetFreq = xt ? 90 : 120;
+    const targetFreq = xt ? 90 : 40;
     const startIndex = freqIndex.indexOf(targetFreq);
     freqIndex = freqIndex.slice(startIndex);
   }
