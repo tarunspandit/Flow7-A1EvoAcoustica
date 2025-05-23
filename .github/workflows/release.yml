@@ -21,10 +21,11 @@ jobs:
       tag_name: ${{ steps.get_version_info.outputs.tag_name }}
       commit_sha: ${{ github.sha }}
 
-    steps:      - name: Check out code
+    steps:
+      - name: Check out code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Fetch all history and tags
+          fetch-depth: 0
           fetch-tags: true
 
       - name: Install jq
