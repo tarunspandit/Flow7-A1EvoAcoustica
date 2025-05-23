@@ -59,7 +59,7 @@ jobs:
               TAG_NAME="$latest_tag"
               echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
               echo "new_version=$latest_version" >> $GITHUB_OUTPUT
-              release_needed=true
+              echo "should_release=true" >> $GITHUB_OUTPUT
               # Checkout the tag to ensure we build from its commit
               git checkout "$latest_tag"
             else
