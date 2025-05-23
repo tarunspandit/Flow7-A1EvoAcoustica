@@ -1222,7 +1222,7 @@ async function mainMenu() {
     }}
 async function initializeApp() {
     console.log('--------------------------------');
-    console.log('  A1 Evo Acoustica v6.2 by OCA');
+    console.log('  A1 Evo Acoustica v6.3 by OCA');
     console.log('--------------------------------');
     mainServer = http.createServer((req, res) => {
         const requestUrl = new URL(req.url, `http://${req.headers.host}`);
@@ -1621,6 +1621,7 @@ async function sendTelnetCommands(ip, port = 23, lpf4LFE = 120) {
         let powerCheckTimer = null;
         let powerOnWaitTimer = null;
         let commandSequenceTimer = null;
+        let presetConfirmationLogged = false;
         let rl = null;
         let isPowerConfirmed = false;
         const cleanup = (error) => {
@@ -1717,8 +1718,9 @@ async function sendTelnetCommands(ip, port = 23, lpf4LFE = 120) {
                     }
                     sendRemainingCommands();
                 });
-            } else if (selectedPreset && telnetOutputBuffer.includes(`SPPR ${selectedPreset}\r`)) { 
+            } else if (selectedPreset && !presetConfirmationLogged && telnetOutputBuffer.includes(`SPPR ${selectedPreset}\r`)) { 
                 console.log(`Preset successfully set to ${selectedPreset}.`);
+                presetConfirmationLogged = true;
             }
         });
         function sendRemainingCommands() {
@@ -1728,7 +1730,7 @@ async function sendTelnetCommands(ip, port = 23, lpf4LFE = 120) {
                 commands.push(`SPPR ${selectedPreset}`); 
             }
             commands.push('SSSWM LFE'); 
-            // commands.push('SSSWO LFE'); 
+            commands.push('SSSWO LFE'); 
             const lpfFormatted = lpf4LFE.toString();
             commands.push(`SSLFL ${lpfFormatted}`); 
             let index = 0;
