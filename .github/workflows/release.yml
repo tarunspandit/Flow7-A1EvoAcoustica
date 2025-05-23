@@ -25,7 +25,8 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
@@ -35,21 +36,40 @@ jobs:
         run: |
           echo "Event type: ${{ github.event_name }}"
           current_version=$(jq -r .version package.json || echo "")
-
           if [ -z "$current_version" ]; then
             echo "::error file=package.json::Could not extract current version from package.json."
             echo "should_release=false" >> $GITHUB_OUTPUT
             exit 1
           fi
           echo "Current package.json version: $current_version"
-          TAG_NAME="v$current_version"
-          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
-          echo "new_version=$current_version" >> $GITHUB_OUTPUT
 
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            echo "Manual trigger (workflow_dispatch). Proceeding with release for version $current_version."
-            echo "should_release=true" >> $GITHUB_OUTPUT
-          else # Push event
+          # Fetch all tags and get the latest one
+          git fetch --tags
+          latest_tag=$(git tag -l "v*" | sort -V | tail -n 1 || echo "")
+
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ -n "$latest_tag" ]; then
+            # Extract version number from latest tag (remove 'v' prefix)
+            latest_version=${latest_tag#v}
+            echo "Latest tag version: $latest_version"
+            echo "Package.json version: $current_version"
+
+            # Compare versions using sort -V (version sort)
+            if [ "$(printf '%s\n%s' "$current_version" "$latest_version" | sort -V | tail -n 1)" = "$latest_version" ]; then
+              echo "Found newer tag $latest_tag. Using it for the build."
+              TAG_NAME="$latest_tag"
+              echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+              echo "new_version=$latest_version" >> $GITHUB_OUTPUT
+              release_needed=true
+              # Checkout the tag to ensure we build from its commit
+              git checkout "$latest_tag"
+            else
+              echo "No newer tag found. Using package.json version."
+              TAG_NAME="v$current_version"
+              echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+              echo "new_version=$current_version" >> $GITHUB_OUTPUT
+              echo "should_release=true" >> $GITHUB_OUTPUT
+            fi
+          else # Push event or no newer tag
             echo "Push event. Checking for version change."
             previous_version=$(git show HEAD~1:package.json 2>/dev/null | jq -r .version || echo "")
             echo "Previous package.json version: $previous_version"
