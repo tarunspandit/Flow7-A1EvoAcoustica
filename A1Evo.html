@@ -40,13 +40,17 @@ and noninfringement. Use at your own risk.
     font-family: 'Inter', 'Segoe UI', Roboto, sans-serif;
     background-color: #0F172A;
     color: #F1F5F9;
+    overflow-y: scroll;
+    overflow-x: auto;
+    min-height: 100vh;
+    padding: 20px;
   }
   #measurementChoice {
-    position: fixed;
+    position: absolute;
     top: 0;
     left: 0;
     width: 100%;
-    height: 100%;
+    min-height: 100%;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -55,7 +59,7 @@ and noninfringement. Use at your own risk.
   }
   .card {
     border-radius: 16px;
-    padding: 40px;
+    padding: 20px;
     box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
     max-width: 1000px;
     width: 100%;
@@ -110,7 +114,7 @@ and noninfringement. Use at your own risk.
     justify-content: center;
     gap: 60px;
     font-size: 1rem;
-    margin-top: 15px;
+    margin-top: 18px;
   }
   .link-container a {
     text-decoration: underline;
@@ -119,7 +123,7 @@ and noninfringement. Use at your own risk.
   }
   .link-container a:hover {
     color: #4299E1;
-    transform: scale(1.1);
+    transform: scale(1.05);
     text-decoration: none;
   }
   p {
@@ -139,7 +143,6 @@ and noninfringement. Use at your own risk.
      text-shadow: 0 0 30px rgba(165, 243, 252, 0.6), 0 0 10px rgba(74, 222, 128, 0.4);
      animation: textGlow 3s ease-in-out infinite;
    }
-
    @keyframes textGlow {
      0%, 100% { text-shadow: 0 0 20px rgba(165, 243, 252, 0.6), 0 0 10px rgba(74, 222, 128, 0.4); }
      50% { text-shadow: 0 0 30px rgba(165, 243, 252, 0.8), 0 0 15px rgba(74, 222, 128, 0.6); }
@@ -149,7 +152,7 @@ and noninfringement. Use at your own risk.
     font-size: 1.2rem;
     font-weight: 300;
     color: #93c5fd;
-    margin-bottom: 3rem;
+    margin-bottom: 1rem;
     letter-spacing: 0.1em;
     text-transform: uppercase;
     animation: fadeIn 2s ease-in;
@@ -201,12 +204,12 @@ and noninfringement. Use at your own risk.
   .slider-label {
     display: flex;
     justify-content: space-between;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
     color: #CBD5E0;
     font-size: 1rem;
   }
   .slider {
-    width: 100%;
+    width: 95%;
     height: 6px;
     background: linear-gradient(90deg, #3B82F6, #2D3748);
     border-radius: 3px;
@@ -277,18 +280,18 @@ and noninfringement. Use at your own risk.
   }
   .link-tooltip {
     visibility: hidden;
-    width: 250px;
+    width: 150px;
     background-color: #555;
     color: #fff;
     text-align: center;
     border-radius: 6px;
-    padding: 5px;
+    padding: 2px;
     position: absolute;
     z-index: 1;
     bottom: 125%;
     font-size: 12px;
     left: 50%;
-    margin-left: -100px;
+    margin-left: -87px;
     opacity: 0;
     transition: opacity 0.3s;
   }
@@ -307,7 +310,7 @@ and noninfringement. Use at your own risk.
     border-color: #555 transparent transparent transparent;
   }
   .option-container {
-    margin: 25px auto;
+    margin: 12px auto;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -363,12 +366,11 @@ and noninfringement. Use at your own risk.
     visibility: hidden;
     position: absolute;
     top: 100%;
-    left: 25%;
-    transform: translateX(-50%);
+    left: 0%;
+    transform: translateX(0);
     padding: 5px 10px;
     border-radius: 4px;
     font-size: 12px;
-    
     opacity: 0;
     transition: opacity 0.2s ease;
     pointer-events: none;
@@ -378,60 +380,61 @@ and noninfringement. Use at your own risk.
     opacity: 0.9;
   }
   .rolloff-wrapper {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 6px;
-      margin-top: 1rem;
-      font-size: 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    margin-top: 1rem;
+	margin-bottom: 2rem;  /* Added this line */
+    font-size: 1rem;
   }
   .rolloff-controls {
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-      flex-wrap: wrap;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
   }
   .rolloff-text {
-      white-space: nowrap;
-      font-size: 0.8rem;
+    white-space: nowrap;
+    font-size: 0.8rem;
   }
   #rolloffFreqInput,
   #rolloffSlopeSelect,
   #lpf4lfeSlopeSelect {
-      padding: 2px 6px;
-      border: 1px solid #4A5568;
-      border-radius: 4px;
-      background-color: #2D3748;
-      color: #E2E8F0;
-      font-size: 0.8rem;
+    padding: 2px 6px;
+    border: 1px solid #4A5568;
+    border-radius: 4px;
+    background-color: #2D3748;
+    color: #E2E8F0;
+    font-size: 0.8rem;
   }
   #rolloffFreqInput {
-      width: 40px;
+    width: 40px;
   }
   #rolloffSlopeSelect,
   #lpf4lfeSlopeSelect {
-      min-width: 65px;
-      cursor: pointer;
+    min-width: 65px;
+    cursor: pointer;
   }
   #lpf4lfeSlopeSelect {
-      background-color: #2D3748 !important;
-      min-width: 80px;
+    background-color: #2D3748 !important;
+    min-width: 80px;
   }
   #rolloffSlopeSelect:disabled,
   #lpf4lfeSlopeSelect:disabled,
   #rolloffFreqInput:disabled {
-      cursor: not-allowed;
-      opacity: 0.6;
-      color: #A0AEC0;
+    cursor: not-allowed;
+    opacity: 0.6;
+    color: #A0AEC0;
   }
   #enableRolloff {
-      margin-right: 6px;
+    margin-right: 6px;
   }
   .checkbox-label {
-      display: flex;
-      align-items: center;
-      font-size: 1rem;
-      cursor: pointer;
+    display: flex;
+    align-items: center;
+    font-size: 1rem;
+    cursor: pointer;
   }
   .rolloff-note {
     font-size: 0.85rem;
@@ -464,11 +467,12 @@ and noninfringement. Use at your own risk.
     border-radius: 10px;
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
     font-family: 'Poppins', 'Segoe UI', Roboto, sans-serif;
-    font-size: 1rem;
+    font-size: 0.82rem;
     color: #CBD5E0;
     overflow-y: auto;
     z-index: 2000;
     transition: all 0.3s ease-in-out;
+    text-align: left;
   }
   #logContainer .log {
     background: rgba(34, 197, 94, 0.15);
@@ -509,7 +513,7 @@ and noninfringement. Use at your own risk.
   }
   .manual-load-container {
     display: none;
-    padding: 1.2rem;
+    padding: 0.6rem;
     margin-top: 1rem;
     background: rgba(31, 41, 55, 0.5);
     border: 1px dashed rgba(59, 130, 246, 0.3);
@@ -530,7 +534,7 @@ and noninfringement. Use at your own risk.
   .manual-file-input {
     width: 80%;
     margin-top: 0.5rem;
-    padding: 0.75rem;
+    padding: 0.5rem;
     background: rgba(17, 24, 39, 0.8);
     border: 1px solid rgba(55, 65, 81, 0.7);
     border-radius: 0.5rem;
@@ -568,6 +572,33 @@ and noninfringement. Use at your own risk.
   .manual-file-input::file-selector-button:hover {
     background: linear-gradient(45deg, #1e40af, #2563eb);
   }
+  .drawer {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out;
+  }
+  .drawer.open {
+    max-height: 2000px;
+    transition: max-height 0.3s ease-in;
+  }
+  .expert-button {
+    background: linear-gradient(135deg, #2563eb, #1e40af);
+    color: white;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    margin: 10px auto;
+    display: block;
+    width: fit-content;
+    transition: all 0.3s ease;
+  }
+  .expert-button:hover {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+  }
 </style>
 </head>
 <body>
@@ -579,6 +610,22 @@ and noninfringement. Use at your own risk.
   <h2>
   <span style="color: #2563EB; font-weight: 200;">Audio Optimization Suite</span>
   </h2>
+  <button id="buttonADY" onclick="extractMeasurements()" class="button2">
+  Extract measurements from<br><span class="lowercase-text">.ady</span> / <span class="lowercase-text">.mqx<br>&</span><br>import them into REW<br>
+  </button>
+  <button id="startEvo" onclick="main()" class="button">
+  Start optimization using the measurements currently loaded in<br>Room EQ Wizard
+  </button>
+  <div id="manualLoadSection" class="manual-load-container">
+  <span id="manualLoadText" class="manual-load-text"></span>
+  <input type="file" id="manualConfigFileInput" class="manual-file-input" accept=".avr">
+  <div id="manualLoadError" class="manual-error-message"></div>
+  </div>
+  <button class="expert-button" onclick="toggleExpertDrawer()">Advanced Settings</button>
+  <div id="expertDrawer" class="drawer">
+  <h3>
+  <span style="color: #ef4444; font-weight: 350;">Warning – decibels ahead! Messing with these settings may hertz your earz.</span>
+  </h3>
   <div class="slider-container">
   <div class="slider-label">
   <span>Night listening volume offset:</span>
@@ -592,7 +639,7 @@ and noninfringement. Use at your own risk.
   <div class="crossover-sliders">
   <div class="crossover-slider">
   <div class="slider-label">
-  <span>Sub EQ max boost</span>
+  <span>Subwoofer EQ filter boost</span>
   <span id="subBoostValue">5 dB</span>
   </div>
   <div class="tooltip-container">
@@ -601,7 +648,7 @@ and noninfringement. Use at your own risk.
   </div></div>
   <div class="crossover-slider">
   <div class="slider-label">
-  <span>Sub target infill</span>
+  <span>Subwoofer target curve infill</span>
   <span id="bassFillValue">0 dB</span>
   </div>
   <div class="tooltip-container">
@@ -644,7 +691,7 @@ and noninfringement. Use at your own risk.
   <input type="range" id="minFreqSliderC" class="slider" min="0" max="7" step="1" value="0">
   <div class="tooltip">Select mimimum search frequency for center speaker crossover optimization</div>
   </div>
-  </div> 
+  </div>
   <div class="crossover-slider">
   <div class="slider-label">
   <span>Maximum crossover frequency - Center speaker</span>
@@ -681,7 +728,7 @@ and noninfringement. Use at your own risk.
   </div>
   </div>
   </div>
-  <div class="option-container" style="display: flex; flex-direction: row; gap: 1px;">
+  <div class="option-container" style="display: flex; flex-direction: row; gap: 0.5px;">
   <div class="tooltip-container">
   <label class="checkbox-label">
   <input type="checkbox" id="disableSpeakerInversion">Fix speaker polarities
@@ -694,11 +741,11 @@ and noninfringement. Use at your own risk.
   </label>
   <div class="tooltip">Evaluate and add allpass filters to minimize dips below target curve</div>
   </div>
-  <div class="tooltip-container" style="display: inline-block; background-color: #fce4e4; border-radius: 4px; padding: 4px 4px;">
-  <label class="checkbox-label" style="border-bottom: 2px solid #e74c3c; color: #2c3e50; font-weight: bold;">
+  <div class="tooltip-container">
+  <label class="checkbox-label" style="border-bottom: 2px solid #e74c3c; width: fit-content;">
   <input type="checkbox" id="weakBass">Bass was too weak!
   </label>
-  <div class="tooltip">Fix subwoofer volume offset problems for certain models and measurement methods</div>
+  <div class="tooltip">Fix sub(s) offset volume problem with certain measurement methods</div>
   </div>
   </div>
   <div class="rolloff-wrapper tooltip-container">
@@ -715,36 +762,27 @@ and noninfringement. Use at your own risk.
   <label class="rolloff-text" for="lpf4lfeSlopeSelect">&nbsp;LP freq:</label>
   <select id="lpf4lfeSlopeSelect" disabled></select>
   </div>
-</div>
-  <button id="buttonADY" onclick="extractMeasurements()" class="button2">
-  Extract calibration measurements from<br><span class="lowercase-text">( .ady</span> / <span class="lowercase-text">.mqx )<br>&</span><br>import them into REW<br>
-  </button>
-  <button id="startEvo" onclick="main()" class="button">
-  Start optimization using the measurements currently loaded in<br>Room EQ Wizard
-  </button>
-  <div id="manualLoadSection" class="manual-load-container">
-    <span id="manualLoadText" class="manual-load-text"></span>
-    <input type="file" id="manualConfigFileInput" class="manual-file-input" accept=".avr">
-    <div id="manualLoadError" class="manual-error-message"></div>
+  </div>
   </div>
   <div class="link-container">
-  <a href="https://www.avnirvana.com/threads/rew-api-beta-releases.12981/" target="_blank" class="tooltip-link">Download latest REW Beta<span class="link-tooltip">Get the latest beta version of Room EQ Wizard with API support</span>
+  <a href="https://www.avnirvana.com/threads/rew-api-beta-releases.12981/" target="_blank" class="tooltip-link">Download latest REW Beta<span class="link-tooltip">Room EQ Wizard Beta version with API support</span>
   </a>
   <a href="https://www.videolan.org/vlc/" target="_blank" class="tooltip-link">Download VLC media player<span class="link-tooltip">Free media player for playing Atmos measurement sweeps with REW if you wish to measure your system manually</span>
   </a>
-  <a href="https://www.youtube.com/channel/UCLePp5EV2RR5_Xo7rZnnpnQ?sub_confirmation=1" target="_blank" class="tooltip-link">Ask OCA<span class="link-tooltip">Visit my YouTube channel for comments, support and many tutorials</span>
+  <a href="https://www.youtube.com/channel/UCLePp5EV2RR5_Xo7rZnnpnQ?sub_confirmation=1" target="_blank" class="tooltip-link">Ask OCA<span class="link-tooltip">Visit my YouTube channel for comments, support and DSP tutorial videos</span>
   </a>
-  <a href="https://www.facebook.com/groups/audysseyone" target="_blank" class="tooltip-link">A1 Evo Facebook group<span class="link-tooltip">Problems, solutions and experiences sharing platform with helpful experts and over 2k members</span>
+  <a href="https://www.facebook.com/groups/audysseyone" target="_blank" class="tooltip-link">A1 Evo Facebook group<span class="link-tooltip">Problems, solutions and experience sharing platform with helpful experts and over 2k members</span>
   </a>
-  <a href="https://revolut.me/serko70" target="_blank" class="tooltip-link">Support this project<span class="link-tooltip">Donate via Revolut</span>
+  <a href="https://revolut.me/serko70" target="_blank" class="tooltip-link">Support this project<span class="link-tooltip">Make a donation via Revolut</span>
   </a>
+  </div>
   </div>
   </div>
   <div id="logContainer">
   </div></div>
 </script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/14.0.1/math.min.js"></script><script>
 
-const evoVersion = "6.0";
+const evoVersion = "6.2";
 const baseUrl = 'http://localhost:4735/measurements', speedDelay = 255, maxDistanceLimit = 7.35;
 let micCalFile = new Array(16384).fill(0), audioCtx = null;
 let jsonName = 'receiver_config.avr';
@@ -754,9 +792,12 @@ let folderPath, localAppPath = null, ocafileName, sOs = null, isCirrusLogic, isG
 let nSpeakers = null, nSubs = null, subMinTrim = -12, subMaxTrim = 12, lpf4LFE, filterCompensation, targetCurvePath, targetLevel, responseTarget, dataTarget, tcName, rewMaxLimit, isPreProcessed = false, isAutomated;
 let customLevel = [], commandId = [], customDistance = [], customInvert = [], customCrossover = [], customFilter = [], deqFilter = [], subTrim = [], customMinFreq = [], customMaxFreq = [], customMinFreqFR = [], customMaxFreqFR = [], customMinFreqC = [], customMaxFreqC = [],customMargin = [], subAllPassQ = null, allpassQ = [];
 const defaultSlope = "L-R4";
-const dbValues = [-12, -15, -18, -20, -25]; //Equal loudness contours
+const dbValues = [-12, -15, -18, -20, -25];
 var subBoost = 0, bassFill = 0, levelLowVol = 2, enableInversion = false, enableWeakBass = false, noAllpass = false, minFreq = 40, maxFreq = 250, minFreqFR = 40, maxFreqFR = 250, minFreqC = 40, maxFreqC = 250,  subRolloffEnabled = false, subRolloffFreq = null, subRolloffSlope = defaultSlope, lpf4lfeValue = null;
 
+function toggleExpertDrawer() {
+  const drawer = document.getElementById('expertDrawer');
+  drawer.classList.toggle('open');}
 async function floatsToBase64(floatArray) {
     const nativeFloat32Data = (floatArray instanceof Float32Array) ? floatArray : new Float32Array(floatArray);
   if (nativeFloat32Data.length === 0) {
@@ -1238,10 +1279,10 @@ async function checkRewMeasurements(){
     } else {
         chType = 54;
         for (let i = firstSWIndex; i < jsonContent.detectedChannels.length; i++) {
-            jsonContent.detectedChannels[i].commandId = `SW${swCount}`;
-            jsonContent.detectedChannels[i].enChannelType = chType;
-            swCount++;
-            chType++;
+          jsonContent.detectedChannels[i].commandId = `SW${swCount}`;
+          jsonContent.detectedChannels[i].enChannelType = chType;
+          swCount++;
+          chType++;
         }
     }
   } else {
@@ -1291,10 +1332,10 @@ async function checkRewMeasurements(){
   }
   const missingNames = Array.from(allowedNames).filter(name => !foundNames.has(name));
   if (invalidNames.length > 0 || missingNames.length > 0) {
-      let errorMsg = [];
-      if (invalidNames.length > 0) {errorMsg.push("Invalid measurement names detected:\n" + invalidNames.join("\n"));}
-      if (missingNames.length > 0) {errorMsg.push("Missing measurements for the following speakers:\n" + missingNames.join("\n"));}
-      if (errorMsg.length > 0) {console.error(errorMsg.join("\n\n")); throwError();}
+    let errorMsg = [];
+    if (invalidNames.length > 0) {errorMsg.push("Invalid measurement names detected:\n" + invalidNames.join("\n"));}
+    if (missingNames.length > 0) {errorMsg.push("Missing measurements for the following speakers:\n" + missingNames.join("\n"));}
+    if (errorMsg.length > 0) {console.error(errorMsg.join("\n\n")); throwError();}
   }
   const nameCounts = {};
   for (const measurement of measurementArray) {
@@ -1370,6 +1411,9 @@ async function main(){
   const logContainer = document.getElementById('logContainer');
   const measurementChoice = document.getElementById('measurementChoice');
   logContainer.style.display = 'block';
+
+  document.body.style.overflow = 'hidden';
+
   measurementChoice.classList.add('transitioned');
   const startTime = performance.now();
   console.infoBold(`** Customizations start **`);
@@ -1482,18 +1526,18 @@ async function checkREW() {
       const limitExceeded = rewMaxLimit < 200;
       const tcResponse = await fetch('http://localhost:4735/eq/house-curve');
       if (tcResponse.ok) {
-          const responseText = await tcResponse.text();
-          if (!responseText.trim()) {
-              targetCurvePath = null;
-          } else {
-              targetCurvePath = responseText.trim();
-              if (targetCurvePath.startsWith('"') && targetCurvePath.endsWith('"')) {
-                  targetCurvePath = targetCurvePath.slice(1, -1);
-              }
-              if (!targetCurvePath) {
-                  targetCurvePath = null;
-              }
-          }
+        const responseText = await tcResponse.text();
+        if (!responseText.trim()) {
+            targetCurvePath = null;
+        } else {
+            targetCurvePath = responseText.trim();
+            if (targetCurvePath.startsWith('"') && targetCurvePath.endsWith('"')) {
+                targetCurvePath = targetCurvePath.slice(1, -1);
+            }
+            if (!targetCurvePath) {
+                targetCurvePath = null;
+            }
+        }
       } else {
           targetCurvePath = null;
       }
@@ -1610,50 +1654,50 @@ async function ocAced() {
         font-family: 'Poppins', 'Segoe UI', Roboto, sans-serif;
         font-size: 0.8rem;
         color: #E2E8F0;
-        z-index: 3000; 
+        z-index: 3000;
       ">
         <form method="dialog" style="margin: 0;">
           <h3 style="
-            margin: 0 0 15px 0; 
-            font-size: 1.5rem; 
-            font-weight: bold; 
+            margin: 0 0 15px 0;
+            font-size: 1.5rem;
+            font-weight: bold;
             color: #E2E8F0;
           ">
             Save Progress?
           </h3>
           <p style="
-            margin-bottom: 20px; 
-            line-height: 1.6; 
+            margin-bottom: 20px;
+            line-height: 1.6;
             color: #E2E8F0;
           ">
-            Multiple microphone positions were processed. Would you like to save the current state to avoid redundant processing in future optimization runs? REW file 
-            <strong>'Pre-processed_Measurements_[timestamp].mdat'</strong> 
+            Multiple microphone positions were processed. Would you like to save the current state to avoid redundant processing in future optimization runs? REW file
+            <strong>'Pre-processed_Measurements_[timestamp].mdat'</strong>
             will be saved in the 'A1 Evo Acoustica' folder.
           </p>
           <div style="display: flex; justify-content: flex-end; gap: 10px;">
             <!-- Cancel Button -->
             <button type="submit" value="cancel" style="
-              padding: 10px 20px; 
-              border: none; 
-              border-radius: 6px; 
-              background: #4A5568; 
-              color: #E2E8F0; 
-              font-size: 0.8rem; 
-              cursor: pointer; 
+              padding: 10px 20px;
+              border: none;
+              border-radius: 6px;
+              background: #4A5568;
+              color: #E2E8F0;
+              font-size: 0.8rem;
+              cursor: pointer;
               transition: background 0.2s ease;
             ">
               Cancel
             </button>
             <!-- Save Button -->
             <button type="submit" value="confirm" style="
-              padding: 10px 20px; 
-              border: none; 
-              border-radius: 6px; 
-              background: #2B6CB0; 
-              color: #E2E8F0; 
-              font-size: 0.8rem; 
-              font-weight: bold; 
-              cursor: pointer; 
+              padding: 10px 20px;
+              border: none;
+              border-radius: 6px;
+              background: #2B6CB0;
+              color: #E2E8F0;
+              font-size: 0.8rem;
+              font-weight: bold;
+              cursor: pointer;
               transition: background 0.2s ease;
             ">
               Save
@@ -1668,7 +1712,7 @@ async function ocAced() {
     const styleElem = document.createElement('style');
     styleElem.innerHTML = `
       dialog::backdrop {
-        background: rgba(0, 0, 0, 0.6); 
+        background: rgba(0, 0, 0, 0.6);
         backdrop-filter: blur(2px);
       }
     `;
@@ -1685,10 +1729,8 @@ async function ocAced() {
     if (result) {
       try {
         if (!localAppPath) {
-             await fetchAppPath();
-             if (!localAppPath) {
-                  throw new Error("Cannot save: Application path is unknown.");
-             }
+           await fetchAppPath();
+           if (!localAppPath) throw new Error("Cannot save: Application path is unknown.");
         }
         const now = new Date();
         const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}`;
@@ -2004,10 +2046,10 @@ async function checkPolarity() {
       }
       customInvert[i] = false;
     }
-    await postDelete(total + 3); 
-    await postDelete(total + 2); 
+    await postDelete(total + 3);
+    await postDelete(total + 2);
     await postDelete(total + 1);
-  } 
+  }
   if (invertedCount > 0 && invertedCount < nSpeakers) {
     console.warn(`False polarity warnings may occur due to measurement errors, external amps, or certain speakers types like dipole, bipole or Dolby-enabled. If your wiring is confirmed correct, run optimization with 'Disable Speaker Inversion' option turned on.`);
   } else if (invertedCount === nSpeakers) {
@@ -2208,17 +2250,6 @@ async function subHighpass(index, freq) {
   const magValue3 = data2.getFloat32(offset3 * 4, false);
   return Math.abs(magValue2 - magValue1 - 24) + Math.abs(magValue3 - magValue2 - 6);}
 async function alignFronts() {
-  const base64ToF32 = b64 => {
-    if (typeof b64 !== "string" || !b64.length) throw new Error("Invalid Base64");
-    try {
-      const bin = atob(b64), buf = new ArrayBuffer(bin.length), v = new Uint8Array(buf);
-      for (let i = 0; i < bin.length; i++) v[i] = bin.charCodeAt(i);
-      if (buf.byteLength % 4 !== 0) throw new Error("Decoded length not multiple of 4");
-      const swap = new Uint8Array(buf.byteLength);
-      for (let i = 0; i < v.length; i += 4) [swap[i], swap[i + 1], swap[i + 2], swap[i + 3]] = [v[i + 3], v[i + 2], v[i + 1], v[i]];
-      return new Float32Array(swap.buffer);
-    } catch (e) {throw new Error(`Base64 processing failed: ${e.message}`);}
-  };
   const sp1 = 1, sp2 = 2, sw1 = nSpeakers + 1;
   console.info("Optimizing crossover, delay, and inversion for Front L/R + Sub...");
   let maxSumPower = -Infinity;
@@ -2237,7 +2268,7 @@ async function alignFronts() {
   for (let ts = msNeg; ts <= msPos; ts += delayStep) delayValues.push(ts);
   const inversionConfigs = [{subInverted: false}, {subInverted: true}];
   let apfQValues = [0, 0.5773502692, 0.7071067812, 1.0, 1.414213562];
-  if (!noAllpass || (!xt32 && !xt)) apfQValues = [0];
+  if (!noAllpass) apfQValues = [0];
   const subAmplitudeScalingFactor = 2;
   console.info(`Using subwoofer amplitude scaling factor: ${subAmplitudeScalingFactor.toFixed(1)} (${(20 * Math.log10(subAmplitudeScalingFactor)).toFixed(3)} dB)`);
   console.info("Brute force searching optimal configuration, please be patient...");
@@ -2294,7 +2325,7 @@ async function alignFronts() {
       }
       if (bestConfigForFreq.sumPower > -Infinity && bestConfigForFreq.validPoints > 0) {
         const avgPower = bestConfigForFreq.sumPower / bestConfigForFreq.validPoints;
-        const overallMagEstimate = amp2Db(Math.sqrt(avgPower));
+        const overallMagEstimate = amp2Db(avgPower);
         freqResults.push({freq: freq, overallMagEstimate: overallMagEstimate, config: bestConfigForFreq});
         if (bestConfigForFreq.sumPower > bestOverallSumPower) {
           bestOverallSumPower = bestConfigForFreq.sumPower;
@@ -2309,7 +2340,7 @@ async function alignFronts() {
   }
   let maxOverallMagEstimate = -Infinity;
   for (const result of freqResults) {if (result.overallMagEstimate > maxOverallMagEstimate) maxOverallMagEstimate = result.overallMagEstimate;}
-  console.log("Front speakers crossover performance analysis:");
+  console.log("Front speakers + subwoofer(s) crossover performance analysis:");
   const bestResultsByFreq = new Map();
   for (const currentResult of freqResults) {
     const existingBest = bestResultsByFreq.get(currentResult.freq);
@@ -2318,19 +2349,14 @@ async function alignFronts() {
   const uniqueBestResults = Array.from(bestResultsByFreq.values());
   uniqueBestResults.sort((a, b) => a.freq - b.freq);
   for (const result of uniqueBestResults) {
-    console.log(
-      `${result.freq}Hz => Est. SPL: ${result.overallMagEstimate.toFixed(2)}dB | ` + // Using toFixed(2) for dB is common
-      `Delay: ${(result.config.ts * 1000).toFixed(2)}ms | ` +
-      `Invert: ${result.config.subInverted} | ` +
-      `APF Q: ${result.config.apfQ}`
-    );
+    console.log(`${result.freq}Hz => Estimated SPL: ${result.overallMagEstimate.toFixed(2)}dB | Applied delay: ${(result.config.ts * 1000).toFixed(2)}ms | Sub inverted: ${result.config.subInverted} | Allpass filter Q: ${(result.config.apfQ).toFixed(4)}`);
   }
   if (uniqueBestResults.length > 0) {
     let overallBestResult = uniqueBestResults[0];
     for (let i = 1; i < uniqueBestResults.length; i++) {if (uniqueBestResults[i].overallMagEstimate > overallBestResult.overallMagEstimate) overallBestResult = uniqueBestResults[i];}
   }
   if (bestOverallConfig) {
-    console.infoBold(`Optimal front speaker configuration selected => Xover: ${bestOverallConfig.freq}Hz, Subwoofer applied delay: ${(bestOverallConfig.ts * 1000).toFixed(4)}ms, Subwoofer inverted: ${bestOverallConfig.subInverted}, Allpass filter Q: ${bestOverallConfig.apfQ}`);
+    console.infoBold(`Best front speakers + subwoofer configuration => Xover: ${bestOverallConfig.freq}Hz | Applied delay: ${(bestOverallConfig.ts * 1000).toFixed(4)}ms | Subwoofer inverted: ${bestOverallConfig.subInverted}| Allpass filter Q: ${(bestOverallConfig.apfQ).toFixed(4)}`);
     customCrossover[sp1] = bestOverallConfig.freq;
     customCrossover[sp2] = bestOverallConfig.freq;
     subAllPassQ = bestOverallConfig.apfQ
@@ -2375,12 +2401,15 @@ function b64ToFloat32ArrayBE(base64) {
   const len = binaryStr.length;
   const buffer = new ArrayBuffer(len);
   const uint8 = new Uint8Array(buffer);
-  for (var i = 0; i < len; i++) uint8[i] = binaryStr.charCodeAt(i);
-  const floatCount = Math.floor(len / 4);
-  const float32Array = new Float32Array(floatCount);
-  const dataView = new DataView(buffer);
-  for (let i = 0; i < floatCount; i++) float32Array[i] = dataView.getFloat32(i * 4, false);
-  return float32Array;}
+  for (let i = 0; i < len; i++) uint8[i] = binaryStr.charCodeAt(i);
+  const swapped = new Uint8Array(len);
+  for (let i = 0; i < len; i += 4) {
+    swapped[i]     = uint8[i + 3];
+    swapped[i + 1] = uint8[i + 2];
+    swapped[i + 2] = uint8[i + 1];
+    swapped[i + 3] = uint8[i];
+  }
+  return new Float32Array(swapped.buffer);}
 async function fetchResponse(index, xoFreq, isSub = false, uPPO = false, allpassQ = 0) {
   const filters = [{
     index: 21,
@@ -2391,18 +2420,15 @@ async function fetchResponse(index, xoFreq, isSub = false, uPPO = false, allpass
     slopedBPerOctave: isSub ? 24 : 12,
     type: isSub ? 'Low pass' : 'High pass'
   }];
-  if (allpassQ !== 0) {
-    filters.push({
-      index: 22,
-      enabled: true,
+  filters.push({
+      index: 20,
+      enabled: allpassQ !== 0,
       isAuto: false,
       frequency: xoFreq,
       q: allpassQ,
       type: 'All pass'
-    });
-  }
-  await postSafe(`${baseUrl}/${index}/filters`, { filters }, 'Filters set');
-  await new Promise((resolve) => setTimeout(resolve, speedDelay / 5));
+  });
+  await postSafe(`${baseUrl}/${index}/filters`, {filters}, 'Filters set');
   let url = `${baseUrl}/${index}/eq/frequency-response?unit=SPL`;
   if (uPPO) {
     url += '&smoothing=1%2F48&ppo=96';
@@ -2495,7 +2521,6 @@ async function optimizeSpeakers(sp1, sp2 = null) {
   let bestWorstDip = Infinity, bestWorstXO = null, bestSumDip = Infinity, bestSumXO = null;
   let bestWorstq1 = null, bestWorstq2 = null, bestSumAP1 = null, bestSumAP2 = null;
   const getPpoIndexingConstants = (speakerResponse, targetResponsePPO) => {
-    if (!speakerResponse?.startFreq || !speakerResponse?.ppo || speakerResponse.ppo <= 0 || !targetResponsePPO || targetResponsePPO <= 0) return {A: NaN, B: NaN, magLength: 0, phaseLength: 0, isValid: false};
     const A = Math.log2(targetResp.startFreq / speakerResponse.startFreq) * speakerResponse.ppo;
     const B = speakerResponse.ppo / targetResponsePPO;
     return { A, B, magLength: speakerResponse.magnitude.length, phaseLength: speakerResponse.phase.length, isValid: true };
@@ -2510,7 +2535,6 @@ async function optimizeSpeakers(sp1, sp2 = null) {
       const idxSpk = Math.min(Math.max(Math.round(rawIdxSpk), 0), ppoConstsSpk.magLength - 1);
       const rawIdxSub = ppoConstsSub.A + targetIndex * ppoConstsSub.B;
       const idxSub = Math.min(Math.max(Math.round(rawIdxSub), 0), ppoConstsSub.magLength - 1);
-      if (idxSpk >= ppoConstsSpk.phaseLength || idxSub >= ppoConstsSub.phaseLength || isNaN(speakerResponseData.magnitude[idxSpk]) || isNaN(speakerResponseData.phase[idxSpk]) || isNaN(subwooferResponseData.magnitude[idxSub]) || isNaN(subwooferResponseData.phase[idxSub])) continue;
       const spkAmp = dB2Amp(speakerResponseData.magnitude[idxSpk]); const spkPhaseRad = toRad(speakerResponseData.phase[idxSpk]);
       const subAmp = dB2Amp(subwooferResponseData.magnitude[idxSub]); const subPhaseRad = toRad(subwooferResponseData.phase[idxSub]);
       const realSum = spkAmp * Math.cos(spkPhaseRad) + subAmp * Math.cos(subPhaseRad);
@@ -2599,23 +2623,19 @@ async function optimizeSpeakers(sp1, sp2 = null) {
     if (currentFreq_bestWorstDipVal !== Infinity) {
       if (isPair) {
         console.info(
-          `Freq: ${freq}Hz - Best for this freq: ` +
-          `WorstDip ${(-currentFreq_bestWorstDipVal).toFixed(2)}dB (Allpass Q1: ${currentFreq_bestWorstDipQ1?.toFixed(4)}, Allpass Q2: ${currentFreq_bestWorstDipQ2?.toFixed(4)}); ` +
-          `AvgSumDip ${(-currentFreq_bestSumDipVal / 2).toFixed(2)}dB (Allpass Q1: ${currentFreq_bestSumDipQ1?.toFixed(4)}, Allpass Q2: ${currentFreq_bestSumDipQ2?.toFixed(4)})`
+          `Freq: ${freq}Hz - Worst dip ${(-currentFreq_bestWorstDipVal).toFixed(2)}dB (Allpass Q1: ${currentFreq_bestWorstDipQ1?.toFixed(4)}, Allpass Q2: ${currentFreq_bestWorstDipQ2?.toFixed(4)}) | Average dip ${(-currentFreq_bestSumDipVal / 2).toFixed(2)}dB (Allpass Q1: ${currentFreq_bestSumDipQ1?.toFixed(4)}, Allpass Q2: ${currentFreq_bestSumDipQ2?.toFixed(4)})`
         );
       } else {
-          console.info(
-            `Freq: ${freq}Hz - Best for this freq: ` +
-            `Dip ${(-currentFreq_bestWorstDipVal).toFixed(2)}dB (Q: ${currentFreq_bestWorstDipQ1?.toFixed(4)})`
+          console.info(`Freq: ${freq}Hz - Dip ${(-currentFreq_bestWorstDipVal).toFixed(2)}dB (Q: ${currentFreq_bestWorstDipQ1?.toFixed(4)})`
           );
       }
     } else {
       console.info(`Freq: ${freq}Hz - No valid dip calculations found or all attempts failed.`);
     }
   }
-  console.info(`Overall Best XOver (WorstDip criterion): ${bestWorstXO}Hz, Allpass Q1: ${bestWorstq1?.toFixed(4)}${isPair && bestWorstq2 !== null ? `, Allpass Q2: ${bestWorstq2.toFixed(4)}` : ''}. Dip value: ${bestWorstDip.toFixed(2)} (corresponds to ${(-bestWorstDip).toFixed(2)}dB below target)`);
-  console.info(`Overall Best XOver (SumDip criterion): ${bestSumXO}Hz, Allpass Q1: ${bestSumAP1?.toFixed(4)}${isPair && bestSumAP2 !== null ? `, Allpass Q2: ${bestSumAP2.toFixed(4)}` : ''}. Summed dip value: ${bestSumDip.toFixed(2)} (corresponds to ${isPair ? (-bestSumDip/2).toFixed(2) + 'dB avg below target' : (-bestSumDip).toFixed(2) + 'dB below target'})`);
-  customCrossover[sp1] = bestWorstXO; 
+  console.info(`Overall best crossover by worst off: ${bestWorstXO}Hz, Allpass Q1: ${bestWorstq1?.toFixed(4)}${isPair && bestWorstq2 !== null ? `, Allpass Q2: ${bestWorstq2.toFixed(4)}` : ''}, dips below target: ${-bestWorstDip.toFixed(4)}`);
+  console.info(`Overall best crossover by average: ${bestSumXO}Hz, Allpass Q1: ${bestSumAP1?.toFixed(4)}${isPair && bestSumAP2 !== null ? `, Allpass Q2: ${bestSumAP2.toFixed(4)}` : ''}, dips below target: ${isPair ? (-bestSumDip/2).toFixed(4) : (-bestSumDip).toFixed(4)}`);
+  customCrossover[sp1] = bestWorstXO;
   allpassQ[sp1] = bestWorstq1;
   console.infoBold(`  >> Assigned Crossover: ${customCrossover[sp1]}Hz, Allpass Q1: ${allpassQ[sp1]?.toFixed(4)} to ${commandId[sp1]}`);
   if (isPair) {
@@ -2779,7 +2799,7 @@ async function multipleSubs(indices) {
   subMinTrim -= minBoost;
   console.info(`Remaining subwoofer volume adjustment range: ${subMinTrim}dB - +${subMaxTrim}dB`);
   const allPermutations = generatePermutations(indices);
-  if(nSubs >= 3) console.info(`This will take a little while...`);
+  if(nSubs >= 3) console.info(`Deploying multiple subwoofer precision alignment protocol...`);
   let bestFinalScore = -Infinity;
   let bestAlignedSumIndex = null;
   let bestmSecs = null;
@@ -2894,8 +2914,7 @@ async function optimizeSubs(i1, i2, timeShiftMinMs, timeShiftMaxMs, fMax) {
         dst[i + 2] = src[i + 1];
         dst[i + 3] = src[i];
       }
-      return new Float32Array(swappedBuffer);
-    };
+      return new Float32Array(swappedBuffer);};
     return {startFreq, freqStep, phase: base64ToFloat32ArrayBigEndian(phase), magnitude: base64ToFloat32ArrayBigEndian(magnitude)};}
   const dB2Amp = dB => Math.pow(10, dB / 20);
   const toRadians = deg => deg * Math.PI / 180;
@@ -2949,8 +2968,8 @@ async function optimizeSubs(i1, i2, timeShiftMinMs, timeShiftMaxMs, fMax) {
     if (bestForInversion.sumPower > bestConfig.sumPower) bestConfig = bestForInversion;
   }
   const avgPower = bestConfig.sumPower / nIndices;
-  const overallMag = 10 * Math.log10(avgPower);
-  console.infoUpdate(`Analysing permutation: Required time delay: ${(bestConfig.timeShift * 1000).toFixed(3)} ms, inversion required: ${bestConfig.sub2Inverted}, estimated sound pressure: ${overallMag.toFixed(2)} dB`);
+  const overallMag = 20 * Math.log10(avgPower);
+  console.infoUpdate(`Analysed permutation: Required time delay: ${(bestConfig.timeShift * 1000).toFixed(3)} ms, inversion required: ${bestConfig.sub2Inverted}, estimated linear amplitude: ${overallMag.toFixed(2)} dB`);
   const bestDelay = -bestConfig.timeShift * 1000;
   const bestInvert = bestConfig.sub2Inverted;
   const finalScore = overallMag;
@@ -3068,7 +3087,7 @@ async function lowVolumeFilters() {
     const title = name.title;
     const deqSp = await postNext('Arithmetic', [i, filterIndice], {function: "A * B"});
     await new Promise((resolve) => setTimeout(resolve, speedDelay));
-    const spKey = parseInt(Object.keys(deqSp.results)[0], 10); 
+    const spKey = parseInt(Object.keys(deqSp.results)[0], 10);
     await postSafe(`${baseUrl}/${spKey}/ir-windows`, {leftWindowType: "Rectangular", rightWindowType: "Rectangular", leftWindowWidthms: 0, rightWindowWidthms: rightWindowWidth, refTimems: 0, addFDW: false}, "Update processed");
     const magResponse = await fetchSafe('frequency-response?smoothing=None', spKey);
     const {startFreq, freqStep, magnitude} = magResponse;
@@ -3375,11 +3394,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const parsedFreq = parseFloat(rolloffFreq.value.replace(',', '.'));
       subRolloffFreq = (subRolloffEnabled && !isNaN(parsedFreq) && parsedFreq >= 10 && parsedFreq <= 60) ? parsedFreq : null;
       subRolloffSlope = subRolloffEnabled ? rolloffSlope.value : defaultSlope;
-      lpf4lfeValue = subRolloffEnabled ? parseInt(lpf4lfeSlope.value.replace('Hz', '')) : null; 
+      lpf4lfeValue = subRolloffEnabled ? parseInt(lpf4lfeSlope.value.replace('Hz', '')) : null;
     };
     rolloffFreq.disabled = !rolloffToggle.checked;
     rolloffSlope.disabled = !rolloffToggle.checked;
-    lpf4lfeSlope.disabled = !rolloffToggle.checked; 
+    lpf4lfeSlope.disabled = !rolloffToggle.checked;
     updateRolloffValues();
     rolloffToggle.addEventListener('change', () => {
       const isChecked = rolloffToggle.checked;
@@ -3404,7 +3423,7 @@ function autoLoadConfiguration() {
     const manualSection = document.getElementById('manualLoadSection');
     const manualText = document.getElementById('manualLoadText');
     if (manualSection && manualText) {
-        manualText.textContent = `You are supposed to use the main menu to run this tool! Select configuration file '${configFileName}' manually to override and start optimization:`; // Set text
+        manualText.textContent = `Debug mode: Select configuration file '${configFileName}' manually to override and start optimization:`;
         manualSection.style.display = 'block';
     } else {
         throwError(`Page loaded locally, but manual input elements not found. Cannot proceed!`);
@@ -3543,7 +3562,7 @@ function readContents() {
   const no180 = modelsNo180xo.includes(model);
   if (!no180) freqIndex.splice(8, 0, extraFreq);
   if (!xt32) {
-    const targetFreq = xt ? 90 : 120;
+    const targetFreq = xt ? 90 : 40;
     const startIndex = freqIndex.indexOf(targetFreq);
     freqIndex = freqIndex.slice(startIndex);
   }
@@ -3602,11 +3621,11 @@ function UpdateBassFill(bassFillDb, syncSlider) {
 function UpdateLowVolume(position, syncSlider) {
   // Update the global variable
   levelLowVol = position;
-  
+
   // Update display
   const offsetDisplay = document.getElementById('lowVolumeOffset');
   offsetDisplay.textContent = dbValues[position] + ' dB';
-  
+
   // Update slider if needed
   if (syncSlider) {
     document.getElementById('lowVolumeSlider').value = position;
@@ -3628,7 +3647,7 @@ function UpdateMaxFreq(maxFreqHz, syncSlider) {
     document.getElementById('maxFreqValue').textContent = maxFreqHz + ' Hz';
     if (syncSlider) {
       const index = customMaxFreq.findIndex(freq => Math.abs(freq - maxFreqHz) < 0.1);
-      if (index !== -1) document.getElementById('maxFreqSlider').value = index; 
+      if (index !== -1) document.getElementById('maxFreqSlider').value = index;
     }
   }}
 function UpdateMinFreqFR(minFreqHzFR, syncSlider) {
@@ -3648,7 +3667,7 @@ function UpdateMaxFreqFR(maxFreqHzFR, syncSlider) {
     document.getElementById('maxFreqValueFR').textContent = maxFreqHzFR + ' Hz';
     if (syncSlider) {
       const index = customMaxFreq.findIndex(freq => Math.abs(freq - maxFreqHzFR) < 0.1);
-      if (index !== -1) document.getElementById('maxFreqSliderFR').value = index; 
+      if (index !== -1) document.getElementById('maxFreqSliderFR').value = index;
     }
   }}
 
@@ -3669,7 +3688,7 @@ function UpdateMaxFreqC(maxFreqHzC, syncSlider) {
     document.getElementById('maxFreqValueC').textContent = maxFreqHzC + ' Hz';
     if (syncSlider) {
       const index = customMaxFreq.findIndex(freq => Math.abs(freq - maxFreqHzC) < 0.1);
-      if (index !== -1) document.getElementById('maxFreqSliderC').value = index; 
+      if (index !== -1) document.getElementById('maxFreqSliderC').value = index;
     }
   }}
 function UpdateisWeakBass(disableWB, syncToggle) {
@@ -3775,13 +3794,13 @@ async function postNext(processName, indices, parameters = null, maxRetries = 3)
     ? `${baseUrl}/process-measurements`
     : `${baseUrl}/${indices}/${isEqCommand ? 'eq/command' : 'command'}`;
   const body = {
-    ...(isProcessMeasurements 
-      ? { 
+    ...(isProcessMeasurements
+      ? {
           processName,
-          measurementIndices: indices 
+          measurementIndices: indices
         }
-      : { 
-          command: processName 
+      : {
+          command: processName
         }),
     ...(parameters && {parameters})
   };
@@ -3795,8 +3814,8 @@ async function postNext(processName, indices, parameters = null, maxRetries = 3)
 
       if (!response.ok) {
         const errorData = await response.json();
-        if (response.status === 500 && 
-            errorData.message?.includes('timed out') && 
+        if (response.status === 500 &&
+            errorData.message?.includes('timed out') &&
             retryCount < maxRetries) {
           console.warn(`Attempt ${retryCount + 1} failed, retrying in 5 seconds...`);
           await new Promise(resolve => setTimeout(resolve, 5000));
@@ -3839,8 +3858,8 @@ async function postNext(processName, indices, parameters = null, maxRetries = 3)
   }}
 async function postSafe(requestUrl, parameters, message) {
   async function fetchData() {
-    const body = typeof parameters === 'string' 
-      ? parameters 
+    const body = typeof parameters === 'string'
+      ? parameters
       : JSON.stringify(parameters);
     const headers = typeof parameters === 'string'
       ? { 'Content-Type': 'text/plain; charset=UTF-8' }
@@ -3874,7 +3893,7 @@ async function postAlign(processName, frequency = null) {
     const response = await fetch('http://localhost:4735/alignment-tool/command', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         command: processName,
         ...(frequency != null && {frequency})
       })
@@ -3886,10 +3905,10 @@ async function postAlign(processName, frequency = null) {
       const errorMessage = parsedMessage.results[0].Error;
       const delayMatch = errorMessage.match(/delay required to align the responses.*(-?[\d.]+) ms/);
       if (delayMatch) {
-        return { 
-          message: 'Delay too large', 
-          error: errorMessage, 
-          delay: parseFloat(delayMatch[1]) 
+        return {
+          message: 'Delay too large',
+          error: errorMessage,
+          delay: parseFloat(delayMatch[1])
         };
       }
     }
@@ -12867,4 +12886,5 @@ const resonEar = [0.0743190244074345,
     logContainer.insertAdjacentHTML('beforeend', errorEntry);
     scrollToBottom();
   };})();
-</script></body></html>
+</script>
+</body></html>
