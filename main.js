@@ -2615,9 +2615,9 @@ async function runCalibrationTransfer(targetIp, basePathForOcaSearch) {
             throw new Error(`Failed to enter calibration mode. Reason: ${e.message}`);
         }
         await sendSetDatCommand(send, avrStatus, rawChSetup, filterData, channelsToSendSorted, multEqType, hasGriffinLiteDSP);
-        /*if (dataType?.toLowerCase().startsWith('fixed')) {
+        if (dataType?.toLowerCase().startsWith('fixed')) {
             try {
-                await delay(coefWaitTime.Init);
+                await delay(coefWaitTime.Init * 3);
                 const initCoefsHex = '5400130000494e49545f434f4546530000006a';
                 await send(initCoefsHex, 'INIT_COEFS', {timeout: 10000, expectAck: true, addChecksum: false});
                 await delay(coefWaitTime.Init);
@@ -2625,35 +2625,6 @@ async function runCalibrationTransfer(targetIp, basePathForOcaSearch) {
                 console.error(`!!! FAILED sending INIT_COEFS: ${e.message}`); 
                 throw new Error("Failed to initialize coefficients (INIT_COEFS).");
             }
-        }*/
-        if (dataType?.toLowerCase().startsWith('fixed')) {
-            const initCoefsHex = '5400130000494e49545f434f4546530000006a';
-            let initCoefsAcknowledged = false;
-            let sequenceAttempts = 0;
-            const maxSequenceAttempts = 2;
-            const avrSuggestedInitWait = (coefWaitTime && typeof coefWaitTime.Init === 'number' && coefWaitTime.Init > 0) ? coefWaitTime.Init : 3000;
-            const secondCallOverallTimeout = avrSuggestedInitWait + 7000;
-            while (!initCoefsAcknowledged && sequenceAttempts < maxSequenceAttempts) {
-                sequenceAttempts++;
-                try {
-                    try {
-                        await send(initCoefsHex, `INIT_COEFS_CALL1_ATTEMPT_${sequenceAttempts}`, {timeout: 3000, expectAck: false, addChecksum: false});
-                    } catch (firstSendError) {
-                        if (firstSendError.message && !firstSendError.message.toLowerCase().includes('timed out')) console.warn(`   (Debug) Warning during INIT_COEFS (1st call) attempt #${sequenceAttempts}: ${firstSendError.message}`);
-                    }
-                    await delay(2000);
-                    await send(initCoefsHex, `INIT_COEFS_CALL2_ATTEMPT_${sequenceAttempts}`, {timeout: secondCallOverallTimeout, expectAck: true, addChecksum: false});
-                    initCoefsAcknowledged = true;
-                    await delay(avrSuggestedInitWait);
-                } catch (errorDuringSequenceAttempt) {
-                    if (sequenceAttempts >= maxSequenceAttempts) {
-                        throw new Error(`Failed to initialize receiver coefficients (INIT_COEFS) after ${maxSequenceAttempts} attempts. Last error: ${errorDuringSequenceAttempt.message}`);
-                    }
-                    const retryFullSequenceDelay = 3000 + (sequenceAttempts * 2000);
-                    await delay(retryFullSequenceDelay);
-                }
-            }
-            if (!initCoefsAcknowledged) throw new Error(`Failed to initialize receiver coefficients (INIT_COEFS) after exhausting all ${maxSequenceAttempts} attempts.`);
         }
         if (channelsToSendSorted.length === 0 && activeChannels.length > 0) { 
             console.error("Error: No channels available for sending after byte sorting phase. Check warnings above."); 
