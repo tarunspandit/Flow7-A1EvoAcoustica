@@ -1,24 +1,24 @@
 const os = require('os');
 const inquirer = require('inquirer');
-const { exec, spawn } = require('child_process');
+const {exec, spawn} = require('child_process'); 
 const open = require('open');
 const http = require('http');
 const dgram = require('dgram');
 const net = require('net');
-const { URL } = require('url');
+const {URL} = require('url');
 const path = require('path');
 const fs = require('fs');
 const fsPromises = require('fs').promises;
-const { parseStringPromise } = require('xml2js');
+const {parseStringPromise} = require('xml2js');
 const readline = require('readline');
 
 const SERVER_PORT = 3000;
-const AVR_CONTROL_PORT = 1256;
-const MAIN_CONFIG = { timeouts: { discovery: 5000, connection: 3000, command: 10000 } };
+const AVR_CONTROL_PORT = 1256; 
+const MAIN_CONFIG = {timeouts: {discovery: 5000, connection: 3000, command: 10000}}; 
 const rewApiPort = 4735;
 const TRANSFER_CONFIG = {
-    files: { filters: 'filter.oca' },
-    target: { ip: null, port: AVR_CONTROL_PORT },
+    files: { filters: 'filter.oca' }, 
+    target: { ip: null, port: AVR_CONTROL_PORT }, 
     targetCurves: ['00', '01'],
     sampleRates: ['00', '01', '02'],
     timeouts: {
@@ -26,88 +26,86 @@ const TRANSFER_CONFIG = {
         command: 5000,
         finalize: 15000,
         enterCalibration: 3000,
-        nonAckPacket: 50,
+        nonAckPacket: 50, 
         power: 12500
-    }
-};
+    }};
 const BYTES_PER_FLOAT = 4;
 const DECIMATION_FACTOR = 4;
 const decFilterXT32Sub29_taps = [
-    -0.0000068090826, -4.5359936E-8, 0.00010496614, 0.0005359394, 0.0017366897, 0.0043950975,
-    0.00936928, 0.017480986, 0.029199528, 0.04430621, 0.061674833, 0.07929655,
-    0.094606727, 0.1050576, 0.10877161, 0.1050576, 0.094606727, 0.07929655,
-    0.061674833, 0.04430621, 0.029199528, 0.017480986, 0.00936928, 0.0043950975,
+    -0.0000068090826, -4.5359936E-8, 0.00010496614, 0.0005359394, 0.0017366897, 0.0043950975, 
+    0.00936928, 0.017480986, 0.029199528, 0.04430621, 0.061674833, 0.07929655, 
+    0.094606727, 0.1050576, 0.10877161, 0.1050576, 0.094606727, 0.07929655, 
+    0.061674833, 0.04430621, 0.029199528, 0.017480986, 0.00936928, 0.0043950975, 
     0.0017366897, 0.0005359394, 0.00010496614, -4.5359936E-8, -0.0000068090826];
 const decFilterXT32Sub37_taps = [
-    -0.000026230078, -0.00013839548, -0.00045447858, -0.0011429883, -0.0023770225,
-    -0.0042346125, -0.0065577077, -0.0088115167, -0.010010772, -0.008782894,
-    -0.0036095164, 0.0067711435, 0.02289046, 0.04414973, 0.06865209, 0.093375608,
-    0.11469775, 0.12916237, 0.1342851, 0.12916237, 0.11469775, 0.093375608,
-    0.06865209, 0.04414973, 0.02289046, 0.0067711435, -0.0036095164, -0.008782894,
-    -0.010010772, -0.0088115167, -0.0065577077, -0.0042346125, -0.0023770225,
+    -0.000026230078, -0.00013839548, -0.00045447858, -0.0011429883, -0.0023770225, 
+    -0.0042346125, -0.0065577077, -0.0088115167, -0.010010772, -0.008782894, 
+    -0.0036095164, 0.0067711435, 0.02289046, 0.04414973, 0.06865209, 0.093375608, 
+    0.11469775, 0.12916237, 0.1342851, 0.12916237, 0.11469775, 0.093375608, 
+    0.06865209, 0.04414973, 0.02289046, 0.0067711435, -0.0036095164, -0.008782894, 
+    -0.010010772, -0.0088115167, -0.0065577077, -0.0042346125, -0.0023770225, 
     -0.0011429883, -0.00045447858, -0.00013839548, -0.000026230078];
 const decFilterXT32Sub93_taps = [
-    0.000004904671, 0.000016451735, 0.000035466823, 0.000054780343, 0.000057436635,
-    0.000019883537, -0.00007663135, -0.00022867938, -0.0003953652, -0.0004970615,
-    -0.00043803814, -0.00015296187, 0.00033801072, 0.00089421676, 0.0012704487,
-    0.0011992522, 0.0005233042, -0.00067407207, -0.0020127299, -0.0028939669,
-    -0.0027228948, -0.0012104996, 0.0013740772, 0.004148222, 0.005850492,
-    0.005338624, 0.0021824592, -0.0029139882, -0.0081179589, -0.011018342,
-    -0.0096052159, -0.0033266835, 0.0062539442, 0.015607043, 0.020322932,
-    0.016872915, 0.0044270838, -0.014038938, -0.031958703, -0.040876575,
-    -0.033219177, -0.0052278917, 0.04104016, 0.097502038, 0.15189469,
-    0.19119503, 0.20552149, 0.19119503, 0.15189469, 0.097502038, 0.04104016,
-    -0.0052278917, -0.033219177, -0.040876575, -0.031958703, -0.014038938,
-    0.0044270838, 0.016872915, 0.020322932, 0.015607043, 0.0062539442,
-    -0.0033266835, -0.0096052159, -0.011018342, -0.0081179589, -0.0029139882,
-    0.0021824592, 0.005338624, 0.005850492, 0.004148222, 0.0013740772,
-    -0.0012104996, -0.0027228948, -0.0028939669, -0.0020127299, -0.00067407207,
-    0.0005233042, 0.0011992522, 0.0012704487, 0.00089421676, 0.00033801072,
-    -0.00015296187, -0.00043803814, -0.0004970615, -0.0003953652, -0.00022867938,
-    -0.00007663135, 0.000019883537, 0.000057436635, 0.000054780343, 0.000035466823,
+    0.000004904671, 0.000016451735, 0.000035466823, 0.000054780343, 0.000057436635, 
+    0.000019883537, -0.00007663135, -0.00022867938, -0.0003953652, -0.0004970615, 
+    -0.00043803814, -0.00015296187, 0.00033801072, 0.00089421676, 0.0012704487, 
+    0.0011992522, 0.0005233042, -0.00067407207, -0.0020127299, -0.0028939669, 
+    -0.0027228948, -0.0012104996, 0.0013740772, 0.004148222, 0.005850492, 
+    0.005338624, 0.0021824592, -0.0029139882, -0.0081179589, -0.011018342, 
+    -0.0096052159, -0.0033266835, 0.0062539442, 0.015607043, 0.020322932, 
+    0.016872915, 0.0044270838, -0.014038938, -0.031958703, -0.040876575, 
+    -0.033219177, -0.0052278917, 0.04104016, 0.097502038, 0.15189469, 
+    0.19119503, 0.20552149, 0.19119503, 0.15189469, 0.097502038, 0.04104016, 
+    -0.0052278917, -0.033219177, -0.040876575, -0.031958703, -0.014038938, 
+    0.0044270838, 0.016872915, 0.020322932, 0.015607043, 0.0062539442, 
+    -0.0033266835, -0.0096052159, -0.011018342, -0.0081179589, -0.0029139882, 
+    0.0021824592, 0.005338624, 0.005850492, 0.004148222, 0.0013740772, 
+    -0.0012104996, -0.0027228948, -0.0028939669, -0.0020127299, -0.00067407207, 
+    0.0005233042, 0.0011992522, 0.0012704487, 0.00089421676, 0.00033801072, 
+    -0.00015296187, -0.00043803814, -0.0004970615, -0.0003953652, -0.00022867938, 
+    -0.00007663135, 0.000019883537, 0.000057436635, 0.000054780343, 0.000035466823, 
     0.000016451735, 0.000004904671];
 const decFilterXT32Sat129_taps = [
-    0.0000043782347, 0.000014723354, 0.000032770109, 0.000054528296, 0.000068608439,
-    0.00005722275, 0.0000025561833, -0.0001022896, -0.00024198946, -0.0003741896,
-    -0.0004376953, -0.00037544663, -0.00016613922, 0.00014951751, 0.00046477153,
-    0.000636138, 0.0005427991, 0.00015503204, -0.0004217047, -0.00095836946,
-    -0.0011810855, -0.00089615857, -0.00010969268, 0.0009218459, 0.0017551293,
-    0.0019349628, 0.0012194271, -0.00024770317, -0.0019181528, -0.0030198381,
-    -0.0028912309, -0.0013345525, 0.0011865027, 0.0036375371, 0.0048077558,
-    0.0038727189, 0.00087827817, -0.0031111876, -0.0063393954, -0.0070888256,
-    -0.0045305756, 0.00070328976, 0.006557314, 0.010292898, 0.009696761,
-    0.0042538098, -0.0042899773, -0.012354134, -0.01590999, -0.012335026,
-    -0.0019397299, 0.0116079, 0.022352377, 0.024387382, 0.014624386,
-    -0.0051601734, -0.028005365, -0.043577183, -0.04166761, -0.016186262,
-    0.031879943, 0.09379751, 0.15517053, 0.20020825, 0.21674114,
-    0.20020825, 0.15517053, 0.09379751, 0.031879943, -0.016186262,
-    -0.04166761, -0.043577183, -0.028005365, -0.0051601734, 0.014624386,
-    0.024387382, 0.022352377, 0.0116079, -0.0019397299, -0.012335026,
-    -0.01590999, -0.012354134, -0.0042899773, 0.0042538098, 0.009696761,
-    0.010292898, 0.006557314, 0.00070328976, -0.0045305756, -0.0070888256,
-    -0.0063393954, -0.0031111876, 0.00087827817, 0.0038727189, 0.0048077558,
-    0.0036375371, 0.0011865027, -0.0013345525, -0.0028912309, -0.0030198381,
-    -0.0019181528, -0.00024770317, 0.0012194271, 0.0019349628, 0.0017551293,
-    0.0009218459, -0.00010969268, -0.00089615857, -0.0011810855, -0.00095836946,
-    -0.0004217047, 0.00015503204, 0.0005427991, 0.000636138, 0.00046477153,
-    0.00014951751, -0.00016613922, -0.00037544663, -0.0004376953, -0.0003741896,
-    -0.00024198946, -0.0001022896, 0.0000025561833, 0.00005722275, 0.000068608439,
+    0.0000043782347, 0.000014723354, 0.000032770109, 0.000054528296, 0.000068608439, 
+    0.00005722275, 0.0000025561833, -0.0001022896, -0.00024198946, -0.0003741896, 
+    -0.0004376953, -0.00037544663, -0.00016613922, 0.00014951751, 0.00046477153, 
+    0.000636138, 0.0005427991, 0.00015503204, -0.0004217047, -0.00095836946, 
+    -0.0011810855, -0.00089615857, -0.00010969268, 0.0009218459, 0.0017551293, 
+    0.0019349628, 0.0012194271, -0.00024770317, -0.0019181528, -0.0030198381, 
+    -0.0028912309, -0.0013345525, 0.0011865027, 0.0036375371, 0.0048077558, 
+    0.0038727189, 0.00087827817, -0.0031111876, -0.0063393954, -0.0070888256, 
+    -0.0045305756, 0.00070328976, 0.006557314, 0.010292898, 0.009696761, 
+    0.0042538098, -0.0042899773, -0.012354134, -0.01590999, -0.012335026, 
+    -0.0019397299, 0.0116079, 0.022352377, 0.024387382, 0.014624386, 
+    -0.0051601734, -0.028005365, -0.043577183, -0.04166761, -0.016186262, 
+    0.031879943, 0.09379751, 0.15517053, 0.20020825, 0.21674114, 
+    0.20020825, 0.15517053, 0.09379751, 0.031879943, -0.016186262, 
+    -0.04166761, -0.043577183, -0.028005365, -0.0051601734, 0.014624386, 
+    0.024387382, 0.022352377, 0.0116079, -0.0019397299, -0.012335026, 
+    -0.01590999, -0.012354134, -0.0042899773, 0.0042538098, 0.009696761, 
+    0.010292898, 0.006557314, 0.00070328976, -0.0045305756, -0.0070888256, 
+    -0.0063393954, -0.0031111876, 0.00087827817, 0.0038727189, 0.0048077558, 
+    0.0036375371, 0.0011865027, -0.0013345525, -0.0028912309, -0.0030198381, 
+    -0.0019181528, -0.00024770317, 0.0012194271, 0.0019349628, 0.0017551293, 
+    0.0009218459, -0.00010969268, -0.00089615857, -0.0011810855, -0.00095836946, 
+    -0.0004217047, 0.00015503204, 0.0005427991, 0.000636138, 0.00046477153, 
+    0.00014951751, -0.00016613922, -0.00037544663, -0.0004376953, -0.0003741896, 
+    -0.00024198946, -0.0001022896, 0.0000025561833, 0.00005722275, 0.000068608439, 
     0.000054528296, 0.000032770109, 0.000014723354, 0.0000043782347];
-const EXPECTED_NON_XT32_FLOAT_COUNTS = { 'XT': { speaker: 512, sub: 512 }, 'MultEQ': { speaker: 128, sub: 512 } };
+const EXPECTED_NON_XT32_FLOAT_COUNTS = {'XT': {speaker: 512, sub: 512}, 'MultEQ': {speaker: 128, sub: 512 }};
 
 const decomposeFilter = (filterTaps, M) => {
     const L = filterTaps.length;
-    if (M <= 0 || L === 0) return Array.from({ length: M || 0 }, () => []);
+    if (M <= 0 || L === 0) return Array.from({ length: M || 0 }, () => []); 
     const phases = Array.from({ length: M }, () => []);
-    for (let p = 0; p < M; p++) {
-        for (let i = 0; ; i++) {
-            const n = i * M + p;
-            if (n >= L) break;
+    for (let p = 0; p < M; p++) { 
+        for (let i = 0; ; i++) { 
+            const n = i * M + p; 
+            if (n >= L) break; 
             phases[p].push(filterTaps[n]);
         }
     }
-    return phases;
-};
+    return phases;};
 const polyphaseDecimate = (signal, phases, M, originalFilterLength) => {
     const signalLen = signal.length;
     const L = originalFilterLength;
@@ -119,23 +117,22 @@ const polyphaseDecimate = (signal, phases, M, originalFilterLength) => {
     if (outputLen <= 0) {
         return [];
     }
-    const output = new Array(outputLen).fill(0.0);
+    const output = new Array(outputLen).fill(0.0); 
     for (let k = 0; k < outputLen; k++) {
-        let y_k = 0.0;
+        let y_k = 0.0; 
         for (let p = 0; p < M; p++) {
-            const currentPhase = phases[p];
+            const currentPhase = phases[p]; 
             for (let i = 0; i < currentPhase.length; i++) {
-                const inIndex = k * M + p - i * M;
+                const inIndex = k * M + p - i * M; 
                 if (inIndex >= 0 && inIndex < signalLen) {
                     y_k += currentPhase[i] * signal[inIndex];
                 }
             }
         }
-        output[k] = y_k;
+        output[k] = y_k; 
     }
-    return output;
-};
-const generateWindow = (len, type = 1) => {
+    return output;};
+const generateWindow = (len, type = 1) => { 
     const c1 = [0.5];
     const c2 = [0.5];
     const c3 = [0.0];
@@ -145,27 +142,26 @@ const generateWindow = (len, type = 1) => {
     const c = (typeIndex >= 0 && typeIndex < c3.length) ? c3[typeIndex] : 0.0;
     if (len <= 0) return [];
     const window = new Array(len);
-    const factor = 1.0 / (len > 1 ? len - 1 : 1);
+    const factor = 1.0 / (len > 1 ? len - 1 : 1); 
     const pi2 = 2 * Math.PI;
     const pi4 = 4 * Math.PI;
     for (let i = 0; i < len; i++) {
         const t = i * factor;
         const cos2pit = Math.cos(pi2 * t);
-        const cos4pit = Math.cos(pi4 * t);
+        const cos4pit = Math.cos(pi4 * t); 
         window[i] = a - b * cos2pit + c * cos4pit;
     }
-    return window;
-};
+    return window;};
 const calculateMultiSampleRateFilter = (currentResidual, bandIdx, config) => {
     const bandLen = config.bandLengths[bandIdx];
     const filterInfo = config.decFiltersInfo[bandIdx];
-    const useDelayComp = config.delayComp[bandIdx];
+    const useDelayComp = config.delayComp[bandIdx]; 
     if (!filterInfo || !filterInfo.phases || !Array.isArray(filterInfo.phases)) {
         throw new Error(`Polyphase filter info missing or invalid for band ${bandIdx}.`);
     }
     const decFilterPhases = filterInfo.phases;
     const decFilterOriginalLen = filterInfo.originalLength;
-    if (bandLen <= 0) {
+    if (bandLen <= 0) { 
         return { processedBand: [], updatedResidual: [...currentResidual] };
     }
     if (decFilterOriginalLen === 0) {
@@ -178,8 +174,8 @@ const calculateMultiSampleRateFilter = (currentResidual, bandIdx, config) => {
         console.warn(`Calculated window length (${winLen}) is negative for band ${bandIdx} (BandLen: ${bandLen}, Delay: ${delay}). Clamping to 0.`);
         return { processedBand: [], updatedResidual: [...currentResidual] };
     }
-    const winAlloc = winLen * 2 + 3;
-    const fullWindow = generateWindow(winAlloc, 1);
+    const winAlloc = winLen * 2 + 3; 
+    const fullWindow = generateWindow(winAlloc, 1); 
     for (let i = 0; i < delay; i++) {
         if (i < currentResidual.length) {
             processedBand[i] = currentResidual[i];
@@ -187,7 +183,7 @@ const calculateMultiSampleRateFilter = (currentResidual, bandIdx, config) => {
     }
     const windowOffset = Math.floor(winAlloc / 2) + 1;
     for (let i = 0; i < winLen; i++) {
-        const residualIdx = delay + i;
+        const residualIdx = delay + i; 
         if (residualIdx < currentResidual.length && (windowOffset + i) < fullWindow.length) {
             processedBand[residualIdx] = currentResidual[residualIdx] * fullWindow[windowOffset + i];
         } else if (residualIdx >= currentResidual.length) {
@@ -208,16 +204,15 @@ const calculateMultiSampleRateFilter = (currentResidual, bandIdx, config) => {
     }
     const decimatedResidual = polyphaseDecimate(residualForDecimation, decFilterPhases, DECIMATION_FACTOR, decFilterOriginalLen);
     const updatedResidual = decimatedResidual.map(v => v * DECIMATION_FACTOR);
-    return { processedBand, updatedResidual };
-};
+    return { processedBand, updatedResidual };};
 const calculateMultirate = (impulseResponse, config) => {
     if (!impulseResponse || impulseResponse.length === 0 || !config) {
         console.error("Invalid input to calculateMultirate.");
         return [];
     }
     const finalOutput = new Array(config.outputLength).fill(0.0);
-    let currentResidual = [...impulseResponse];
-    let outputWriteOffset = 0;
+    let currentResidual = [...impulseResponse]; 
+    let outputWriteOffset = 0; 
     const numBands = config.bandLengths.length;
     const bandsToProcess = numBands - 1;
     for (let bandIdx = 0; bandIdx < bandsToProcess; bandIdx++) {
@@ -230,7 +225,7 @@ const calculateMultirate = (impulseResponse, config) => {
                     finalOutput[outputIdx] = (i < processedBand.length) ? processedBand[i] : 0.0;
                 } else {
                     console.warn(`Output buffer overflow detected while writing band ${bandIdx}. Index ${outputIdx} >= Length ${finalOutput.length}.`);
-                    break;
+                    break; 
                 }
             }
             outputWriteOffset += currentBandLen;
@@ -248,15 +243,14 @@ const calculateMultirate = (impulseResponse, config) => {
             finalOutput[outputIdx] = (i < currentResidual.length) ? currentResidual[i] : 0.0;
         } else {
             console.warn(`Output buffer overflow detected while writing last band ${lastBandIdx}. Index ${outputIdx} >= Length ${finalOutput.length}.`);
-            break;
+            break; 
         }
     }
-    if (outputWriteOffset + lastBandLen > finalOutput.length) {
+    if (outputWriteOffset + lastBandLen > finalOutput.length) { 
         console.warn(`Total length of written bands (${outputWriteOffset + Math.min(lastBandLen, currentResidual.length)}) potentially exceeds expected output length (${finalOutput.length}).`);
     } else if (outputWriteOffset + lastBandLen < finalOutput.length) {
     }
-    return finalOutput;
-};
+    return finalOutput;};
 function convertXT32(floats) {
     const inputLength = floats ? floats.length : 0;
     if (inputLength === 0) return [];
@@ -282,18 +276,17 @@ function convertXT32(floats) {
         } catch (error) {
             console.error(`ERROR during XT32 calculateMultirate for ${inputLength} floats (${type}):`, error);
             console.warn(`Returning original filter due to decimation error. Length: ${floats.length}`);
-            return [...floats];
+            return [...floats]; 
         }
     } else {
-        return [...floats];
-    }
-}
+        return [...floats]; 
+    }}
 const filterConfigs = {
     xt32Sub: {
         description: "MultEQ XT32 Subwoofer",
-        inputLength: 0x3EB7,
-        outputLength: 0x2C0,
-        bandLengths: [0x60, 0x60, 0x100, 0xEF],
+        inputLength: 0x3EB7, 
+        outputLength: 0x2C0, 
+        bandLengths: [0x60, 0x60, 0x100, 0xEF], 
         decFiltersInfo: [
             { phases: decomposeFilter(decFilterXT32Sub29_taps, DECIMATION_FACTOR), originalLength: decFilterXT32Sub29_taps.length },
             { phases: decomposeFilter(decFilterXT32Sub37_taps, DECIMATION_FACTOR), originalLength: decFilterXT32Sub37_taps.length },
@@ -303,54 +296,52 @@ const filterConfigs = {
     },
     xt32Speaker: {
         description: "MultEQ XT32 Speaker",
-        inputLength: 0x3FC1,
-        outputLength: 0x400,
-        bandLengths: [0x100, 0x100, 0x100, 0xEB],
+        inputLength: 0x3FC1, 
+        outputLength: 0x400, 
+        bandLengths: [0x100, 0x100, 0x100, 0xEB], 
         decFiltersInfo: [
             { phases: decomposeFilter(decFilterXT32Sat129_taps, DECIMATION_FACTOR), originalLength: decFilterXT32Sat129_taps.length },
             { phases: decomposeFilter(decFilterXT32Sat129_taps, DECIMATION_FACTOR), originalLength: decFilterXT32Sat129_taps.length },
             { phases: decomposeFilter(decFilterXT32Sat129_taps, DECIMATION_FACTOR), originalLength: decFilterXT32Sat129_taps.length }
         ],
         delayComp: [true, true, true]
-    }
-};
+    }};
 const channelByteTable = {
     FL: { eq2: 0x00, neq2: 0x00, griffin: 0x00 },
     C: { eq2: 0x01, neq2: 0x01, griffin: 0x01 },
     FR: { eq2: 0x02, neq2: 0x02, griffin: 0x02 },
     FWR: { eq2: 0x15, neq2: 0x15, griffin: 0x15 },
     SRA: { eq2: 0x03, neq2: 0x03, griffin: 0x03 },
-    SRB: { eq2: null, neq2: 0x07, griffin: null },
+    SRB: { eq2: null, neq2: 0x07, griffin: null }, 
     SBR: { eq2: 0x07, neq2: 0x07, griffin: 0x07 },
     SBL: { eq2: 0x08, neq2: 0x08, griffin: 0x08 },
     SLB: { eq2: null, neq2: 0x0d, griffin: null },
     SLA: { eq2: 0x0c, neq2: 0x0c, griffin: 0x0c },
     FWL: { eq2: 0x1c, neq2: 0x1c, griffin: 0x1c },
     FHL: { eq2: 0x10, neq2: 0x10, griffin: 0x10 },
-    CH: { eq2: 0x12, neq2: 0x12, griffin: 0x12 },
+    CH: { eq2: 0x12, neq2: 0x12, griffin: 0x12 }, 
     FHR: { eq2: 0x14, neq2: 0x14, griffin: 0x14 },
-    TFR: { eq2: 0x04, neq2: 0x04, griffin: 0x04 },
-    TMR: { eq2: 0x05, neq2: 0x05, griffin: 0x05 },
-    TRR: { eq2: 0x06, neq2: 0x06, griffin: 0x06 },
-    SHR: { eq2: 0x16, neq2: 0x16, griffin: 0x16 },
-    RHR: { eq2: 0x13, neq2: 0x17, griffin: 0x13 },
-    TS: { eq2: 0x1d, neq2: 0x1d, griffin: 0x1d },
-    RHL: { eq2: 0x11, neq2: 0x1a, griffin: 0x11 },
-    SHL: { eq2: 0x1b, neq2: 0x1b, griffin: 0x1b },
-    TRL: { eq2: 0x09, neq2: 0x09, griffin: 0x09 },
-    TML: { eq2: 0x0a, neq2: 0x0a, griffin: 0x0a },
-    TFL: { eq2: 0x0b, neq2: 0x0b, griffin: 0x0b },
-    FDL: { eq2: 0x1a, neq2: 0x1a, griffin: 0x1a },
-    FDR: { eq2: 0x17, neq2: 0x17, griffin: 0x17 },
-    SDR: { eq2: 0x18, neq2: 0x18, griffin: 0x18 },
-    BDR: { eq2: 0x18, neq2: 0x00, griffin: 0x1f },
-    SDL: { eq2: 0x19, neq2: 0x19, griffin: 0x19 },
-    BDL: { eq2: 0x19, neq2: 0x00, griffin: 0x20 },
-    SW1: { eq2: 0x0d, neq2: 0x0d, griffin: 0x0d },
+    TFR: { eq2: 0x04, neq2: 0x04, griffin: 0x04 }, 
+    TMR: { eq2: 0x05, neq2: 0x05, griffin: 0x05 }, 
+    TRR: { eq2: 0x06, neq2: 0x06, griffin: 0x06 }, 
+    SHR: { eq2: 0x16, neq2: 0x16, griffin: 0x16 }, 
+    RHR: { eq2: 0x13, neq2: 0x17, griffin: 0x13 }, 
+    TS: { eq2: 0x1d, neq2: 0x1d, griffin: 0x1d }, 
+    RHL: { eq2: 0x11, neq2: 0x1a, griffin: 0x11 }, 
+    SHL: { eq2: 0x1b, neq2: 0x1b, griffin: 0x1b }, 
+    TRL: { eq2: 0x09, neq2: 0x09, griffin: 0x09 }, 
+    TML: { eq2: 0x0a, neq2: 0x0a, griffin: 0x0a }, 
+    TFL: { eq2: 0x0b, neq2: 0x0b, griffin: 0x0b }, 
+    FDL: { eq2: 0x1a, neq2: 0x1a, griffin: 0x1a }, 
+    FDR: { eq2: 0x17, neq2: 0x17, griffin: 0x17 }, 
+    SDR: { eq2: 0x18, neq2: 0x18, griffin: 0x18 }, 
+    BDR: { eq2: 0x18, neq2: 0x00, griffin: 0x1f }, 
+    SDL: { eq2: 0x19, neq2: 0x19, griffin: 0x19 }, 
+    BDL: { eq2: 0x19, neq2: 0x00, griffin: 0x20 }, 
+    SW1: { eq2: 0x0d, neq2: 0x0d, griffin: 0x0d }, 
     SW2: { eq2: 0x0e, neq2: 0x0e, griffin: 0x0e },
     SW3: { eq2: 0x21, neq2: 0x21, griffin: 0x21 },
-    SW4: { eq2: 0x22, neq2: 0x22, griffin: 0x22 }
-};
+    SW4: { eq2: 0x22, neq2: 0x22, griffin: 0x22 }};
 let cachedAvrConfig = null;
 let mainServer = null;
 function getBasePath() {
@@ -358,8 +349,7 @@ function getBasePath() {
         return path.dirname(process.execPath);
     } else {
         return __dirname;
-    }
-}
+    }}
 const APP_BASE_PATH = getBasePath();
 const CONFIG_FILENAME = 'receiver_config.avr';
 const CONFIG_FILEPATH = path.join(APP_BASE_PATH, CONFIG_FILENAME);
@@ -371,8 +361,7 @@ if (!fs.existsSync(HTML_FILEPATH)) {
     console.error(`   APP_BASE_PATH (external): ${APP_BASE_PATH}`);
     console.error(`   __dirname (snapshot/script): ${__dirname}`);
     console.error(`   Is packaged (process.pkg): ${!!process.pkg}`);
-    throw new Error(`Required file ${HTML_FILENAME} not found! Cannot start optimization.`);
-}
+    throw new Error(`Required file ${HTML_FILENAME} not found! Cannot start optimization.`);}
 console.log(`Base path for external files (like '.avr', '.oca', '.mdat'): ${APP_BASE_PATH}`);
 console.log(`Attempting to load configuration from: ${CONFIG_FILEPATH}`);
 class UPNPDiscovery {
@@ -394,11 +383,11 @@ class UPNPDiscovery {
         for (const name of Object.keys(interfaces)) {
             for (const iface of interfaces[name]) {
                 if (iface.family === 'IPv4' && !iface.internal) {
-                    return iface.address;
+                    return iface.address; 
                 }
             }
         }
-        return null;
+        return null; 
     }
     discover() {
         return new Promise((resolve, reject) => {
@@ -406,29 +395,29 @@ class UPNPDiscovery {
                 return reject(new Error("Discovery is already in progress."));
             }
             this.active = true;
-            const devices = new Map();
+            const devices = new Map(); 
             const fetchPromises = [];
             let discoveryTimer;
-            let localAddress = null;
+            let localAddress = null; 
             const finishDiscovery = () => {
                 if (!this.active) return;
                 this.active = false;
                 clearTimeout(discoveryTimer);
                 Promise.allSettled(fetchPromises).then(() => {
                     try {
-                        if (this.socket && this.socket.address()) {
+                        if (this.socket && this.socket.address()) { 
                             if (localAddress) {
-                                try { this.socket.dropMembership(this.SSDP_MULTICAST_ADDR, localAddress); } catch (e) { }
-                            }
+                                try { this.socket.dropMembership(this.SSDP_MULTICAST_ADDR, localAddress); } catch (e) { } 
+                            } 
                             this.socket.close(() => {
-                                resolve(Array.from(devices.values()));
+                                resolve(Array.from(devices.values())); 
                             });
-                        } else {
+                        } else { 
                             resolve(Array.from(devices.values()));
-                        }
-                    } catch (closeError) {
-                        console.error("Error closing discovery socket:", closeError);
-                        resolve(Array.from(devices.values()));
+                        } 
+                    } catch (closeError) { 
+                        console.error("Error closing discovery socket:", closeError); 
+                        resolve(Array.from(devices.values())); 
                     }
                 });
             };
@@ -450,8 +439,8 @@ class UPNPDiscovery {
                     const serverMatch = response.match(/SERVER:\s*(.+)/i);
                     if (locationMatch && locationMatch[1]) {
                         const locationUrl = locationMatch[1].trim();
-                        if (!devices.has(locationUrl)) {
-                            devices.set(locationUrl, { address: rinfo.address, descriptionUrl: locationUrl, fetching: true });
+                        if (!devices.has(locationUrl)) { 
+                            devices.set(locationUrl, { address: rinfo.address, descriptionUrl: locationUrl, fetching: true }); 
                             const fetchPromise = this.fetchDeviceDescription(locationUrl)
                                 .then((deviceInfo) => {
                                     if (deviceInfo.modelName && deviceInfo.modelName !== 'Unknown Model') {
@@ -467,7 +456,7 @@ class UPNPDiscovery {
                                         devices.delete(locationUrl);
                                     }
                                 })
-                                .catch(err => {
+                                .catch(err => { 
                                     console.error(`Error processing description for ${locationUrl}: ${err.message}`);
                                     devices.delete(locationUrl);
                                 });
@@ -476,19 +465,19 @@ class UPNPDiscovery {
                     }
                 }
             });
-            localAddress = this._findLocalIp();
+            localAddress = this._findLocalIp(); 
             if (!localAddress) {
-                console.error("No suitable IPv4 network interface found for discovery binding.");
-                console.warn("Falling back to binding discovery socket to 0.0.0.0");
-                localAddress = '0.0.0.0';
+                console.error("No suitable IPv4 network interface found for discovery binding."); 
+                console.warn("Falling back to binding discovery socket to 0.0.0.0"); 
+                localAddress = '0.0.0.0'; 
             }
-            this.socket.bind(0, localAddress, () => {
+            this.socket.bind(0, localAddress, () => { 
                 try {
                     // const addressInfo = this.socket.address();
                     // console.log(`Discovery socket bound to ${addressInfo.address}:${addressInfo.port}`);
                     this.socket.setBroadcast(true);
                     this.socket.setMulticastInterface(localAddress);
-                    this.socket.addMembership(this.SSDP_MULTICAST_ADDR, localAddress);
+                    this.socket.addMembership(this.SSDP_MULTICAST_ADDR, localAddress); 
                     console.log(`Searching network for AV receivers via UPnP (Timeout: ${this.timeout / 1000}s)...`);
                     this.SEARCH_TARGETS.forEach(target => {
                         const searchRequest = Buffer.from(
@@ -518,10 +507,10 @@ class UPNPDiscovery {
     }
     fetchDeviceDescription(locationUrl) {
         const requestTimeout = MAIN_CONFIG.timeouts.command || 5000;
-        return new Promise((resolve, reject) => {
-            let urlToFetch = locationUrl;
-            const attemptFetch = (currentUrl) => {
-                const parsedUrl = new URL(currentUrl);
+        return new Promise((resolve, reject) => { 
+            let urlToFetch = locationUrl; 
+            const attemptFetch = (currentUrl) => { 
+                const parsedUrl = new URL(currentUrl); 
                 const options = {
                     hostname: parsedUrl.hostname,
                     port: parsedUrl.port || (parsedUrl.protocol === 'https:' ? 443 : 80),
@@ -532,26 +521,26 @@ class UPNPDiscovery {
                         'User-Agent': 'Node.js UPnP Discovery',
                         'Accept': 'text/xml, application/xml'
                     }
-                };
-                const protocol = parsedUrl.protocol === 'https:' ? require('https') : require('http');
-                const req = protocol.request(options, (res) => {
-                    let data = '';
-                    if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-                        res.resume();
-                        const redirectUrl = new URL(res.headers.location, currentUrl).href;
-                        attemptFetch(redirectUrl);
-                        return;
-                    }
-                    if (res.statusCode !== 200) {
-                        const errMsg = `Failed to get description ${currentUrl}. Status: ${res.statusCode} ${res.statusMessage}`;
-                        console.warn(errMsg);
-                        res.resume();
-                        reject(new Error(errMsg));
-                        return;
-                    }
-                    res.setEncoding('utf8');
-                    res.on('data', chunk => data += chunk);
-                    res.on('end', () => {
+                }; 
+                const protocol = parsedUrl.protocol === 'https:' ? require('https') : require('http'); 
+                const req = protocol.request(options, (res) => { 
+                    let data = ''; 
+                    if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) { 
+                        res.resume(); 
+                        const redirectUrl = new URL(res.headers.location, currentUrl).href; 
+                        attemptFetch(redirectUrl); 
+                        return; 
+                    } 
+                    if (res.statusCode !== 200) { 
+                        const errMsg = `Failed to get description ${currentUrl}. Status: ${res.statusCode} ${res.statusMessage}`; 
+                        console.warn(errMsg); 
+                        res.resume(); 
+                        reject(new Error(errMsg)); 
+                        return; 
+                    } 
+                    res.setEncoding('utf8'); 
+                    res.on('data', chunk => data += chunk); 
+                    res.on('end', () => { 
                         parseStringPromise(data)
                             .then(parsed => {
                                 const device = parsed?.root?.device?.[0];
@@ -562,29 +551,29 @@ class UPNPDiscovery {
                                     modelName: device.modelName?.[0]?.trim() || 'Unknown Model',
                                     manufacturer: device.manufacturer?.[0]?.trim() || 'Unknown Manufacturer',
                                     friendlyName: device.friendlyName?.[0]?.trim() || 'Unknown Device',
-                                    descriptionUrl: locationUrl
+                                    descriptionUrl: locationUrl 
                                 });
                             })
                             .catch(parseError => {
                                 console.error(`Error parsing device description XML from ${currentUrl}:`, parseError);
                                 console.error("XML Data (first 500 chars):", data.substring(0, 500));
                                 reject(new Error(`XML parse error: ${parseError.message}`));
-                            });
-                    });
-                });
-                req.on('error', (e) => {
-                    const errMsg = `Error requesting description ${currentUrl}: ${e.message}`;
-                    console.error(errMsg);
-                    reject(new Error(errMsg));
-                });
-                req.on('timeout', () => {
-                    req.destroy();
-                    const errMsg = `Timeout requesting description ${currentUrl}`;
-                    console.warn(errMsg);
-                    reject(new Error(errMsg));
-                });
-                req.end();
-            };
+                            }); 
+                    }); 
+                }); 
+                req.on('error', (e) => { 
+                    const errMsg = `Error requesting description ${currentUrl}: ${e.message}`; 
+                    console.error(errMsg); 
+                    reject(new Error(errMsg)); 
+                }); 
+                req.on('timeout', () => { 
+                    req.destroy(); 
+                    const errMsg = `Timeout requesting description ${currentUrl}`; 
+                    console.warn(errMsg); 
+                    reject(new Error(errMsg)); 
+                }); 
+                req.end(); 
+            }; 
             attemptFetch(urlToFetch);
         });
     }
@@ -613,8 +602,7 @@ class UPNPDiscovery {
             return null;
         }
         return devices[answers.selectedDeviceIndex];
-    }
-}
+    }}
 async function _connectToAVR(ip, port, timeout, purpose) {
     return new Promise((resolve, reject) => {
         // console.log(`Attempting ${purpose} connection to ${ip}:${port} (Timeout: ${timeout / 1000}s)...`);
@@ -647,8 +635,7 @@ async function _connectToAVR(ip, port, timeout, purpose) {
             client.destroy();
             reject(new Error(`Connection timed out (socket event) after ${timeout}ms.`));
         });
-    });
-}
+    });}
 async function _sendRawAndParseJsonHelper(socket, hexWithChecksum, label, commandTimeout, bufferLimitBytes, errorContext = '') {
     return new Promise((resolve, reject) => {
         let buffer = Buffer.alloc(0);
@@ -704,8 +691,7 @@ async function _sendRawAndParseJsonHelper(socket, hexWithChecksum, label, comman
                 cleanup(new Error(`Write error during ${label} (${errorContext}): ${err.message}`));
             }
         });
-    });
-}
+    });}
 async function getAvrInfoAndStatusForConfig(socket, commandTimeout = MAIN_CONFIG.timeouts.command) {
     try {
         const infoJson = await _sendRawAndParseJsonHelper(socket, '54001300004745545f415652494e460000006c', 'GET_AVRINF', commandTimeout, 1 * 1024 * 1024, 'Config');
@@ -744,66 +730,64 @@ async function getAvrInfoAndStatusForConfig(socket, commandTimeout = MAIN_CONFIG
     } catch (error) {
         console.error(`Failed to get necessary AVR status/info: ${error.message}`);
         throw new Error(`Failed during AVR status/info retrieval: ${error.message}`);
-    }
-}
-function formatDataForFrontend(details) {
-    if (!details) throw new Error("Cannot format data: Input details object is missing.");
-    const targetModelName = details.modelName || 'Unknown Model';
-    const ipAddress = details.ip || null;
-    const eqTypeString = details.eqTypeString || "";
-    const ampAssignString = details.ampAssignString;
-    const assignBin = details.assignBin;
-    const rawChSetup = details.rawChSetup || [];
-    let enMultEQType = null;
-    if (typeof eqTypeString === 'string' && eqTypeString) {
-        if (eqTypeString.includes('XT32')) enMultEQType = 2;
-        else if (eqTypeString.includes('XT')) enMultEQType = 1;
-        else if (eqTypeString.includes('MultEQ')) enMultEQType = 0;
-    }
-    if (enMultEQType === null) console.warn(`Could not determine MultEQ Type from EQ string: "${eqTypeString}"!`);
-    if (!ampAssignString) console.warn("Amp Assign string missing!");
-    if (!assignBin) console.warn("Amp Assign Info (AssignBin) missing!");
-    let detectedChannels = [];
-    let subCount = 0;
-    if (Array.isArray(rawChSetup)) {
-        rawChSetup.forEach(entry => {
-            if (!entry || typeof entry !== 'object') return;
-            const commandId = Object.keys(entry)[0];
-            const speakerType = entry[commandId];
-            if (speakerType !== 'N') {
-                let standardizedId = commandId;
-                if (commandId.startsWith('SWMIX')) standardizedId = commandId.replace('MIX', '');
-                detectedChannels.push({ commandId: standardizedId });
-                if (standardizedId.startsWith('SW') || standardizedId === 'LFE') subCount++;
-            }
-        });
-    } else {
-        console.warn("Channel Setup data missing or invalid. Cannot determine active channels or sub count!");
-    }
-    if (detectedChannels.length === 0 && rawChSetup.length > 0) {
-        console.warn("Channel Setup data was present, but no active channels were found!");
-    } else if (detectedChannels.length === 0) {
-        console.warn("No active channels detected!");
-    }
-    const simplifiedConfig = {
-        targetModelName: targetModelName,
-        ipAddress: ipAddress,
-        enMultEQType: enMultEQType,
-        subwooferNum: subCount,
-        ampAssign: ampAssignString || null,
-        ampAssignInfo: assignBin || null,
-        detectedChannels: detectedChannels
-    };
-    return simplifiedConfig;
-}
+    }}
+function formatDataForFrontend(details) { 
+    if (!details) throw new Error("Cannot format data: Input details object is missing."); 
+    const targetModelName = details.modelName || 'Unknown Model'; 
+    const ipAddress = details.ip || null; 
+    const eqTypeString = details.eqTypeString || ""; 
+    const ampAssignString = details.ampAssignString; 
+    const assignBin = details.assignBin; 
+    const rawChSetup = details.rawChSetup || []; 
+    let enMultEQType = null; 
+    if (typeof eqTypeString === 'string' && eqTypeString) { 
+        if (eqTypeString.includes('XT32')) enMultEQType = 2; 
+        else if (eqTypeString.includes('XT')) enMultEQType = 1; 
+        else if (eqTypeString.includes('MultEQ')) enMultEQType = 0; 
+    } 
+    if (enMultEQType === null) console.warn(`Could not determine MultEQ Type from EQ string: "${eqTypeString}"!`); 
+    if (!ampAssignString) console.warn("Amp Assign string missing!"); 
+    if (!assignBin) console.warn("Amp Assign Info (AssignBin) missing!"); 
+    let detectedChannels = []; 
+    let subCount = 0; 
+    if (Array.isArray(rawChSetup)) { 
+        rawChSetup.forEach(entry => { 
+            if (!entry || typeof entry !== 'object') return; 
+            const commandId = Object.keys(entry)[0]; 
+            const speakerType = entry[commandId]; 
+            if (speakerType !== 'N') { 
+                let standardizedId = commandId; 
+                if (commandId.startsWith('SWMIX')) standardizedId = commandId.replace('MIX', ''); 
+                detectedChannels.push({ commandId: standardizedId }); 
+                if (standardizedId.startsWith('SW') || standardizedId === 'LFE') subCount++; 
+            } 
+        }); 
+    } else { 
+        console.warn("Channel Setup data missing or invalid. Cannot determine active channels or sub count!"); 
+    } 
+    if (detectedChannels.length === 0 && rawChSetup.length > 0) { 
+        console.warn("Channel Setup data was present, but no active channels were found!"); 
+    } else if (detectedChannels.length === 0) { 
+        console.warn("No active channels detected!"); 
+    } 
+    const simplifiedConfig = { 
+        targetModelName: targetModelName, 
+        ipAddress: ipAddress, 
+        enMultEQType: enMultEQType, 
+        subwooferNum: subCount, 
+        ampAssign: ampAssignString || null, 
+        ampAssignInfo: assignBin || null, 
+        detectedChannels: detectedChannels 
+    }; 
+    return simplifiedConfig;}
 async function fetchModelFromGoform(ipAddress) {
     const requestTimeout = MAIN_CONFIG.timeouts.command || 5000;
     return new Promise((resolve) => {
-        const url = `http://${ipAddress}/goform/formMainZone_MainZoneXml.xml`;
+        const url = `http://${ipAddress}/goform/formMainZone_MainZoneXml.xml`; 
         const options = {
             method: 'GET',
             timeout: requestTimeout,
-            headers: { 'User-Agent': 'Node.js Model Fetcher' }
+            headers: { 'User-Agent': 'Node.js Model Fetcher' } 
         };
         const req = http.request(url, options, (res) => {
             let data = '';
@@ -812,8 +796,8 @@ async function fetchModelFromGoform(ipAddress) {
                     console.warn(`Failed to get ${url}. Status: ${res.statusCode} ${res.statusMessage}!`);
                 } else {
                 }
-                res.resume();
-                resolve(null);
+                res.resume(); 
+                resolve(null); 
                 return;
             }
             res.setEncoding('utf8');
@@ -832,19 +816,19 @@ async function fetchModelFromGoform(ipAddress) {
                             finalName = friendlyName;
                             source = "FriendlyName tag";
                         } else {
-                            finalName = null;
+                            finalName = null; 
                             source = "None Found";
                         }
                     }
-                    if (finalName) {
+                    if (finalName) { 
                         console.log(`Model name identified as "${finalName}" via /goform/ (${source}).`);
-                    } else {
+                    } else { 
                         console.log("Could not identify a specific model name via /goform/.");
                     }
-                    resolve(finalName);
+                    resolve(finalName); 
                 } catch (parseError) {
                     console.error(`Error parsing XML from ${url}:`, parseError);
-                    resolve(null);
+                    resolve(null); 
                 }
             });
         });
@@ -853,32 +837,31 @@ async function fetchModelFromGoform(ipAddress) {
             } else {
                 console.error(`Error requesting ${url}: ${e.message} (Code: ${e.code})`);
             }
-            resolve(null);
+            resolve(null); 
         });
         req.on('timeout', () => {
-            req.destroy();
+            req.destroy(); 
             console.error(`Timeout requesting ${url} after ${requestTimeout}ms`);
-            resolve(null);
+            resolve(null); 
         });
-        req.end();
-    });
-}
+        req.end(); 
+    });}
 async function runFullDiscoveryAndSave(interactive = true) {
     let targetIp = null;
     let modelName = null;
     let manufacturer = null;
-    let initialFriendlyName = null;
-    let modelSource = "None";
-    let selectedInitialInfo = null;
+    let initialFriendlyName = null; 
+    let modelSource = "None"; 
+    let selectedInitialInfo = null; 
     try {
         const discovery = new UPNPDiscovery(MAIN_CONFIG.timeouts.discovery);
         let devices = await discovery.discover();
         console.log(`UPnP Discovery finished. Found ${devices.length} distinct device description(s).`);
-        const potentialAvrs = devices.filter(dev =>
-            dev.address &&
+        const potentialAvrs = devices.filter(dev => 
+            dev.address && 
             (
-                (dev.usn && /Receiver|AVR|Sound(_Sys|Bar)/i.test(dev.usn)) ||
-                /(Denon|Marantz)/i.test(dev.manufacturer || '') ||
+                (dev.usn && /Receiver|AVR|Sound(_Sys|Bar)/i.test(dev.usn)) || 
+                /(Denon|Marantz)/i.test(dev.manufacturer || '') || 
                 (/AVR|Receiver|SR|NR|AV|Cinema|Sound(_Sys|Bar)/i.test(dev.modelName || '') && !/MediaRenderer|MediaServer|NetworkAudio|Speaker/i.test(dev.modelName || '')) ||
                 (/AVR|Receiver|SR|NR|AV|Cinema|Sound(_Sys|Bar)/i.test(dev.friendlyName || '') && !/MediaRenderer|MediaServer|NetworkAudio|Speaker/i.test(dev.friendlyName || ''))
             )
@@ -895,38 +878,38 @@ async function runFullDiscoveryAndSave(interactive = true) {
         if (uniqueIPs.length === 1) {
             targetIp = uniqueIPs[0];
             const descriptionsForIp = groupedByIp[targetIp];
-            selectedInitialInfo = descriptionsForIp.find(d => d.modelName && !/Unknown|Generic|MediaRenderer|MediaServer/i.test(d.modelName)) ||
-                descriptionsForIp.find(d => d.friendlyName && !/Unknown|Generic|MediaRenderer|MediaServer/i.test(d.friendlyName)) ||
-                descriptionsForIp[0];
+            selectedInitialInfo = descriptionsForIp.find(d => d.modelName && !/Unknown|Generic|MediaRenderer|MediaServer/i.test(d.modelName)) || 
+                                descriptionsForIp.find(d => d.friendlyName && !/Unknown|Generic|MediaRenderer|MediaServer/i.test(d.friendlyName)) || 
+                                descriptionsForIp[0]; 
             console.log(`Automatically selected single matching AVR at ${targetIp}`);
         } else if (uniqueIPs.length > 1 && interactive) {
             console.warn(`Multiple matching AVR IPs found via UPnP.`);
-            const choicesForPrompt = uniqueIPs.map(ip => {
-                const descriptions = groupedByIp[ip];
-                return descriptions.find(d => d.modelName && !/Unknown|Generic|MediaRenderer|MediaServer/i.test(d.modelName)) ||
-                    descriptions.find(d => d.friendlyName && !/Unknown|Generic|MediaRenderer|MediaServer/i.test(d.friendlyName)) ||
-                    descriptions[0];
-            }).filter(Boolean);
+            const choicesForPrompt = uniqueIPs.map(ip => { 
+                const descriptions = groupedByIp[ip]; 
+                return descriptions.find(d => d.modelName && !/Unknown|Generic|MediaRenderer|MediaServer/i.test(d.modelName)) || 
+                    descriptions.find(d => d.friendlyName && !/Unknown|Generic|MediaRenderer|MediaServer/i.test(d.friendlyName)) || 
+                    descriptions[0]; 
+            }).filter(Boolean); 
             selectedInitialInfo = await UPNPDiscovery.interactiveDeviceSelection(choicesForPrompt);
-            if (selectedInitialInfo) {
-                targetIp = selectedInitialInfo.address;
+            if (selectedInitialInfo) { 
+                targetIp = selectedInitialInfo.address; 
                 console.log(`User selected AVR at ${targetIp}`);
-            } else {
+            } else { 
                 console.log("No device selected by user from UPnP list.");
             }
         } else if (uniqueIPs.length > 1 && !interactive) {
             console.error("Automatic check failed: Multiple potential AVR IPs found via UPnP. Cannot auto-select.");
-            return false;
+            return false; 
         }
-        if (selectedInitialInfo) {
-            modelName = selectedInitialInfo.modelName;
-            manufacturer = selectedInitialInfo.manufacturer;
-            initialFriendlyName = selectedInitialInfo.friendlyName;
-            if (modelName && !/Unknown Model|Generic|MediaRenderer|MediaServer/i.test(modelName)) {
-                modelSource = "UPnP Description XML";
-            } else {
-                console.log(`UPnP provided model name "${modelName}" is unreliable or missing. Will try other methods.`);
-                modelName = null;
+        if (selectedInitialInfo) { 
+            modelName = selectedInitialInfo.modelName; 
+            manufacturer = selectedInitialInfo.manufacturer; 
+            initialFriendlyName = selectedInitialInfo.friendlyName; 
+            if (modelName && !/Unknown Model|Generic|MediaRenderer|MediaServer/i.test(modelName)) { 
+                modelSource = "UPnP Description XML"; 
+            } else { 
+                console.log(`UPnP provided model name "${modelName}" is unreliable or missing. Will try other methods.`); 
+                modelName = null; 
             }
         }
     } catch (discoveryError) {
@@ -939,8 +922,8 @@ async function runFullDiscoveryAndSave(interactive = true) {
                 type: 'input',
                 name: 'manualIp',
                 message: 'Please enter your AV Receiver IP address (e.g., 192.168.1.100) manually (or leave blank to cancel):',
-                validate: input => {
-                    if (input === '') return true;
+                validate: input => { 
+                    if (input === '') return true; 
                     return (/^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(input)) ? true : 'Please enter a valid IPv4 address or leave blank.';
                 }
             }]);
@@ -951,28 +934,28 @@ async function runFullDiscoveryAndSave(interactive = true) {
                 manufacturer = null;
                 initialFriendlyName = null;
                 modelSource = "Manual IP (Model Unknown)";
-                selectedInitialInfo = { address: targetIp };
-            } else {
+                selectedInitialInfo = { address: targetIp }; 
+            } else { 
                 console.log("Manual IP entry cancelled.");
             }
         } catch (promptError) {
             console.error("Error during manual IP prompt:", promptError);
-            return false;
+            return false; 
         }
     }
     if (!targetIp) {
         console.error("Configuration aborted: No target IP address could be determined.");
-        return false;
+        return false; 
     }
     if (modelSource !== "UPnP Description XML" || !modelName) {
         console.log(`\nAttempting to verify/find model name via /goform/ endpoint on ${targetIp}...`);
         const goformModel = await fetchModelFromGoform(targetIp);
-        if (goformModel) {
-            if (!modelName) {
+        if (goformModel) { 
+            if (!modelName) { 
                 modelName = goformModel;
                 modelSource = "/goform/ XML";
                 //console.log(`Model name identified as "${modelName}" via /goform/.`);
-            } else {
+            } else { 
                 const upnpLower = modelName.toLowerCase();
                 const goformLower = goformModel.toLowerCase();
                 if (upnpLower === goformLower) {
@@ -980,7 +963,7 @@ async function runFullDiscoveryAndSave(interactive = true) {
                     modelSource = "/goform/ XML (Confirmed UPnP)";
                 } else {
                     console.warn(`Model name discrepancy: UPnP reported "${modelName}", /goform/ reports "${goformModel}".`);
-                    const modelOnlyUPnP = modelName.split(' ').pop();
+                    const modelOnlyUPnP = modelName.split(' ').pop(); 
                     const modelOnlyGoform = goformModel.split(' ').pop();
                     if (modelOnlyUPnP && modelOnlyGoform && modelOnlyUPnP.toLowerCase() === modelOnlyGoform.toLowerCase()) {
                         console.log(`   -> Core model parts match ("${modelOnlyUPnP}"). Preferring the more complete /goform/ version: "${goformModel}".`);
@@ -992,7 +975,7 @@ async function runFullDiscoveryAndSave(interactive = true) {
                             type: 'confirm',
                             name: 'useGoform',
                             message: `UPnP reported "${modelName}" but /goform/ reports "${goformModel}". They seem different. Use the /goform/ version ("${goformModel}")?`,
-                            default: true
+                            default: true 
                         }]);
                         if (confirmGoform.useGoform) {
                             modelName = goformModel;
@@ -1000,19 +983,19 @@ async function runFullDiscoveryAndSave(interactive = true) {
                         } else {
                             modelSource += " (User Rejected /goform/ Version)";
                         }
-                    } else {
+                    } else { 
                         console.log(`   Non-interactive mode: Discrepancy detected. Preferring /goform/ version "${goformModel}".`);
                         modelName = goformModel;
                         modelSource = "/goform/ XML (Auto-selected on Discrepancy)";
                     }
                 }
             }
-        } else {
+        } else { 
             console.log("Could not get a valid model name from /goform/ endpoint.");
-            if (!modelName) modelSource = "None Found";
+            if (!modelName) modelSource = "None Found"; 
         }
     }
-    let finalModelName = modelName;
+    let finalModelName = modelName; 
     if (interactive) {
         let promptForModel = false;
         if (finalModelName && finalModelName !== 'Unknown Model' && !/Generic|MediaRenderer|MediaServer/i.test(finalModelName)) {
@@ -1022,8 +1005,8 @@ async function runFullDiscoveryAndSave(interactive = true) {
                 message: `Is "${finalModelName}" the correct model for the device at ${targetIp}? (Source: ${modelSource})`,
                 default: true
             }]);
-            if (!confirm.isCorrect) {
-                finalModelName = null;
+            if (!confirm.isCorrect) { 
+                finalModelName = null; 
                 promptForModel = true;
             }
         } else {
@@ -1038,18 +1021,18 @@ async function runFullDiscoveryAndSave(interactive = true) {
                 validate: input => (input && input.trim().length > 1) ? true : 'Model name cannot be empty.'
             }]);
             finalModelName = modelPrompt.modelNameManual.trim();
-            modelSource = "Manual Entry (User Provided)";
+            modelSource = "Manual Entry (User Provided)"; 
         }
-    } else {
-        if (!finalModelName || finalModelName === 'Unknown Model' || /Generic|MediaRenderer|MediaServer/i.test(finalModelName)) {
-            console.error(`Automatic check failed: Could not determine a valid AVR Model Name for ${targetIp}. (Last attempt source: ${modelSource})`);
-            return false;
-        }
+    } else { 
+        if (!finalModelName || finalModelName === 'Unknown Model' || /Generic|MediaRenderer|MediaServer/i.test(finalModelName)) { 
+            console.error(`Automatic check failed: Could not determine a valid AVR Model Name for ${targetIp}. (Last attempt source: ${modelSource})`); 
+            return false; 
+        } 
         console.log(`Using automatically determined model name: "${finalModelName}" (Source: ${modelSource})`);
     }
     if (!finalModelName) {
         console.error("Configuration aborted: Final Model Name could not be determined.");
-        return false;
+        return false; 
     }
     let socket = null;
     let avrOperationalData = null;
@@ -1058,108 +1041,106 @@ async function runFullDiscoveryAndSave(interactive = true) {
         // console.log(`Fetching operational status from ${targetIp}...`);
         avrOperationalData = await getAvrInfoAndStatusForConfig(socket, MAIN_CONFIG.timeouts.command);
         // console.log("Successfully retrieved operational status from AVR.");
-    } catch (err) {
-        console.error(`Error during connection or status fetch for ${targetIp}: ${err.message}`);
-        if (socket && !socket.destroyed) {
-            socket.destroy();
-        }
-        return false;
-    } finally {
-        if (socket && !socket.destroyed) {
-            socket.end(() => {
-            });
-            await new Promise(resolve => setTimeout(resolve, 50));
-            if (socket && !socket.destroyed) socket.destroy();
+    } catch (err) { 
+        console.error(`Error during connection or status fetch for ${targetIp}: ${err.message}`); 
+        if (socket && !socket.destroyed) { 
+            socket.destroy(); 
+        } 
+        return false; 
+    } finally { 
+        if (socket && !socket.destroyed) { 
+            socket.end(() => { 
+            }); 
+            await new Promise(resolve => setTimeout(resolve, 50)); 
+            if (socket && !socket.destroyed) socket.destroy(); 
         }
     }
     try {
-        const finalDetails = {
-            ip: avrOperationalData.ip,
-            rawChSetup: avrOperationalData.rawChSetup,
-            ampAssignString: avrOperationalData.ampAssignString,
-            assignBin: avrOperationalData.assignBin,
-            eqTypeString: avrOperationalData.eqTypeString,
-            modelName: finalModelName,
-            manufacturer: manufacturer || '',
+        const finalDetails = { 
+            ip: avrOperationalData.ip, 
+            rawChSetup: avrOperationalData.rawChSetup, 
+            ampAssignString: avrOperationalData.ampAssignString, 
+            assignBin: avrOperationalData.assignBin, 
+            eqTypeString: avrOperationalData.eqTypeString, 
+            modelName: finalModelName, 
+            manufacturer: manufacturer || '', 
             friendlyName: initialFriendlyName || '',
         };
         const frontendData = formatDataForFrontend(finalDetails);
         // console.log(`\nSaving configuration to ${CONFIG_FILENAME} for model "${frontendData.targetModelName}" at ${frontendData.ipAddress}...`);
-        fs.writeFileSync(CONFIG_FILEPATH, JSON.stringify(frontendData, null, 2));
+        fs.writeFileSync(CONFIG_FILEPATH, JSON.stringify(frontendData, null, 2)); 
         console.log('Configuration saved successfully.');
-        cachedAvrConfig = frontendData;
-        return true;
+        cachedAvrConfig = frontendData; 
+        return true; 
     } catch (formatSaveError) {
         console.error(`Error formatting or saving configuration: ${formatSaveError.message}`);
-        return false;
-    }
-}
+        return false; 
+    }}
 function loadConfigFromFile() {
     if (fs.existsSync(CONFIG_FILEPATH)) {
         try {
             // console.log(`Loading configuration from file: ${CONFIG_FILENAME}...`);
             const fileContent = fs.readFileSync(CONFIG_FILEPATH, 'utf-8');
             const parsedConfig = JSON.parse(fileContent);
-            if (!parsedConfig.ipAddress || !parsedConfig.targetModelName) {
-                console.warn(`Warning: Loaded config from ${CONFIG_FILENAME} seems incomplete (missing IP or Model Name). Consider re-running configuration.`);
-                cachedAvrConfig = parsedConfig;
-                return true;
+            if (!parsedConfig.ipAddress || !parsedConfig.targetModelName) { 
+                console.warn(`Warning: Loaded config from ${CONFIG_FILENAME} seems incomplete (missing IP or Model Name). Consider re-running configuration.`); 
+                cachedAvrConfig = parsedConfig; 
+                return true; 
             } else {
                 console.log(`Configuration loaded for: ${parsedConfig.targetModelName} at ${parsedConfig.ipAddress}`);
                 cachedAvrConfig = parsedConfig;
-                return true;
+                return true; 
             }
         } catch (error) {
             console.error(`Error reading or parsing ${CONFIG_FILENAME}: ${error.message}`);
-            cachedAvrConfig = null;
-            return false;
+            cachedAvrConfig = null; 
+            return false; 
         }
     } else {
         cachedAvrConfig = null;
-        return false;
-    }
-}
+        return false; 
+    }}
 async function mainMenu() {
     const configExistsAndValid = loadConfigFromFile() && cachedAvrConfig && cachedAvrConfig.ipAddress;
     const configOptionName = cachedAvrConfig
         ? "1. Re-configure AVR (Re-discover & Overwrite Current Config)"
         : "1. Discover AVR & Create Configuration File";
     const optimizeDisabled = !configExistsAndValid;
-    const transferDisabled = !configExistsAndValid;
+    const transferDisabled = !configExistsAndValid; 
     const choices = [
         { name: configOptionName, value: 'config' },
         {
             name: `2. Start Optimization (opens 'A1 Evo' in browser)${optimizeDisabled ? ' (Requires valid configuration)' : ''}`,
             value: 'optimize',
-            disabled: optimizeDisabled ? 'Requires valid configuration file' : false
+            disabled: optimizeDisabled ? 'Requires valid configuration file' : false 
         },
         {
             name: `3. Transfer Optimized Calibration (.oca File)${transferDisabled ? ' (Requires valid configuration)' : ''}`,
             value: 'transfer',
-            disabled: transferDisabled ? 'Requires valid configuration file' : false
+            disabled: transferDisabled ? 'Requires valid configuration file' : false 
         },
         new inquirer.Separator(),
         { name: 'Exit', value: 'exit' },
     ];
-    try {
+    try { 
         const answers = await inquirer.prompt([
             {
                 type: 'list',
                 name: 'action',
                 message: 'Choose an action:',
                 choices: choices,
-                loop: false
+                loop: false 
             },
         ]);
         switch (answers.action) {
             case 'config':
-                const success = await runFullDiscoveryAndSave(true);
+                const success = await runFullDiscoveryAndSave(true); 
                 if (success) {
                     // console.log("AVR configuration completed successfully.");
                 } else {
                     console.error("AVR configuration process failed or was cancelled.");
                 }
-                await mainMenu();
+                await mainMenu(); 
                 break;
             case 'optimize':
                 if (!cachedAvrConfig || !cachedAvrConfig.ipAddress) {
@@ -1176,14 +1157,14 @@ async function mainMenu() {
                 const rewReady = await ensureRewReady();
                 if (!rewReady) {
                     console.warn("\nREW check failed or user chose not to proceed. Aborting optimization.");
-                    await mainMenu();
+                    await mainMenu(); 
                     break;
                 }
                 // console.log('\n--- Starting Optimization ---');
-                const optimizationUrl = `http://localhost:${SERVER_PORT}/`;
+                const optimizationUrl = `http://localhost:${SERVER_PORT}/`; 
                 try {
                     console.log(`Opening ${optimizationUrl} in your default web browser...`);
-                    await open(optimizationUrl, { wait: false });
+                    await open(optimizationUrl, { wait: false }); 
                     console.log("\nA1 Evo should now be open in your browser.");
                     console.log("Complete the optimization steps there.");
                     console.log("You can return here to transfer calibration or exit when finished.");
@@ -1192,7 +1173,7 @@ async function mainMenu() {
                     console.error(`\nError opening browser: ${error.message}`);
                     console.error(`Please manually open your browser to: ${optimizationUrl}`);
                 } finally {
-                    await mainMenu();
+                    await mainMenu(); 
                 }
                 break;
             case 'transfer':
@@ -1211,7 +1192,7 @@ async function mainMenu() {
                 } catch (error) {
                     console.error(`\n[Main Menu] Error during calibration transfer: ${error.message}`);
                 } finally {
-                    await mainMenu();
+                    await mainMenu(); 
                 }
                 break;
             case 'exit':
@@ -1224,22 +1205,21 @@ async function mainMenu() {
                     setTimeout(() => {
                         console.warn("Server close timed out. Forcing exit.");
                         process.exit(1);
-                    }, 2000);
+                    }, 2000); 
                 } else {
-                    process.exit(0);
+                    process.exit(0); 
                 }
-                break;
+                break; 
             default:
                 console.log('Invalid choice. Please try again.');
                 await mainMenu();
                 break;
         }
-    } catch (promptError) {
-        console.error("\nError during menu interaction:", promptError);
-        if (mainServer) mainServer.close();
+    } catch (promptError) { 
+        console.error("\nError during menu interaction:", promptError); 
+        if (mainServer) mainServer.close(); 
         process.exit(1);
-    }
-}
+    }}
 async function initializeApp() {
     console.log('--------------------------------');
     console.log('  A1 Evo Acoustica v6.2 by OCA');
@@ -1300,38 +1280,37 @@ async function initializeApp() {
                             }
                         }));
                     }
-                });
-                req.on('error', (err) => {
-                    console.error('[Server] Request stream error for /api/save-oca:', err);
+                }); 
+                req.on('error', (err) => { 
+                    console.error('[Server] Request stream error for /api/save-oca:', err); 
                     if (!res.headersSent) {
                         res.writeHead(500, { 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ success: false, message: 'Server request error.' }));
-                    }
+                        res.end(JSON.stringify({ success: false, message: 'Server request error.' })); 
+                    } 
                 });
             }
-            else if (method === 'GET' && (pathname === '/' || pathname === `/${HTML_FILENAME}`)) {
+            else if (method === 'GET' && (pathname === '/' || pathname === `/${HTML_FILENAME}`)) { 
                 fs.readFile(HTML_FILEPATH, (err, data) => { if (err) { console.error(`[Server] Error reading ${HTML_FILENAME}:`, err); res.writeHead(500, { 'Content-Type': 'text/plain' }); res.end('Internal Server Error: Could not load main HTML file.'); } else { res.writeHead(200, { 'Content-Type': 'text/html' }); res.end(data); } });
             }
-            else if (method === 'GET' && pathname === `/${CONFIG_FILENAME}`) {
+            else if (method === 'GET' && pathname === `/${CONFIG_FILENAME}`) { 
                 if (cachedAvrConfig && cachedAvrConfig.ipAddress) { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(cachedAvrConfig)); } else { fs.readFile(CONFIG_FILEPATH, (err, data) => { if (err) { console.warn(`[Server] ${CONFIG_FILENAME} requested but not found or not cached.`); res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: `${CONFIG_FILENAME} not found. Run configuration first.` })); } else { try { const fileConfig = JSON.parse(data.toString()); res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(data); } catch (parseErr) { console.error(`[Server] Error parsing ${CONFIG_FILENAME} from disk:`, parseErr); res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: `Error reading configuration file.` })); } } }); }
             }
-            else if (method === 'GET' && pathname === '/api/get-app-path') {
+            else if (method === 'GET' && pathname === '/api/get-app-path') { 
                 res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ appPath: APP_BASE_PATH }));
             }
-            else {
+            else { 
                 res.writeHead(404, { 'Content-Type': 'text/plain' }); res.end('Not Found');
             }
-        } catch (serverError) {
+        } catch(serverError) { 
             console.error("[Server] Unhandled error during request processing:", serverError); try { if (!res.headersSent) { res.writeHead(500, { 'Content-Type': 'text/plain' }); res.end('Internal Server Error'); } } catch (responseError) { console.error("[Server] Error sending 500 response:", responseError); }
         }
     });
     mainServer.listen(SERVER_PORT, '127.0.0.1', () => {
         mainMenu();
     });
-    mainServer.on('error', (err) => {
+    mainServer.on('error', (err) => { 
         if (err.code === 'EADDRINUSE') { console.error(`\nFATAL ERROR: Port ${SERVER_PORT} is already in use.`); console.error("Please close the application using the port (maybe another instance of this app?)"); console.error("Or, if necessary, change SERVER_PORT constant at the top of the script."); } else { console.error('\nFATAL SERVER ERROR:', err); } process.exit(1);
-    });
-}
+    });}
 function isProcessRunning(processName) {
     return new Promise((resolve) => {
         const platform = os.platform();
@@ -1354,21 +1333,20 @@ function isProcessRunning(processName) {
                 }
             }
         });
-    });
-}
+    });}
 function findRewPath() {
     const platform = os.platform();
-    const commonPaths = [];
+    const commonPaths = []; 
     if (platform === 'win32') {
         const progFiles = process.env['ProgramFiles'] || 'C:\\Program Files';
         const progFilesX86 = process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)';
         commonPaths.push(path.join(progFiles, 'REW', 'roomeqwizard.exe'));
         commonPaths.push(path.join(progFilesX86, 'REW', 'roomeqwizard.exe'));
-        commonPaths.push(path.join(progFiles, 'Room EQ Wizard', 'roomeqwizard.exe'));
+        commonPaths.push(path.join(progFiles, 'Room EQ Wizard', 'roomeqwizard.exe')); 
         commonPaths.push(path.join(progFilesX86, 'Room EQ Wizard', 'roomeqwizard.exe'));
     } else if (platform === 'darwin') {
-        commonPaths.push('/Applications/REW.app/Contents/MacOS/roomeqwizard');
-        commonPaths.push('/Applications/REW.app');
+        commonPaths.push('/Applications/REW.app/Contents/MacOS/roomeqwizard'); 
+        commonPaths.push('/Applications/REW.app'); 
         commonPaths.push('/Applications/REW/REW.app/Contents/MacOS/JavaApplicationStub');
         commonPaths.push('/Applications/REW/REW.app');
         const home = os.homedir();
@@ -1405,14 +1383,13 @@ function findRewPath() {
         console.log("REW not found in standard locations.");
         return null;
     }
-    return 'roomeqwizard';
-}
+    return 'roomeqwizard';}
 function launchRew(rewPath, memoryArg = "-Xmx4096m") {
     return new Promise((resolve) => {
         const platform = os.platform();
         let cmd = '';
         let args = [];
-        const apiArg = '-api';
+        const apiArg = '-api'; 
         console.log(`Launching REW with ~4GB allocated memory and starting its API server...`);
         try {
             if (platform === 'win32') {
@@ -1423,49 +1400,48 @@ function launchRew(rewPath, memoryArg = "-Xmx4096m") {
                     console.error(`Error launching REW (Win32 using start): ${err.message}`);
                     resolve(false);
                 });
-                child.unref();
-                resolve(true);
-            } else if (platform === 'darwin') {
+                child.unref(); 
+                resolve(true); 
+            } else if (platform === 'darwin') { 
                 if (rewPath.endsWith('.app')) {
                     cmd = 'open';
-                    args = ['-a', rewPath, '--args', memoryArg, apiArg];
-                } else {
-                    cmd = rewPath;
-                    args = [memoryArg, apiArg];
-                }
-                const child = spawn(cmd, args, { detached: true, stdio: 'ignore' });
+                    args = ['-a', rewPath, '--args', memoryArg, apiArg]; 
+                } else { 
+                    cmd = rewPath; 
+                    args = [memoryArg, apiArg]; 
+                } 
+                const child = spawn(cmd, args, {detached: true, stdio: 'ignore'}); 
                 child.on('error', (err) => {
                     console.error(`Error launching REW (macOS using ${cmd}): ${err.message}`);
-                    resolve(false);
-                });
-                child.unref();
-                resolve(true);
-            } else {
-                cmd = rewPath;
-                args = [memoryArg, apiArg];
-                const child = spawn(cmd, args, { detached: true, stdio: 'ignore' });
+                    resolve(false); 
+                }); 
+                child.unref(); 
+                resolve(true); 
+            } else { 
+                cmd = rewPath; 
+                args = [memoryArg, apiArg]; 
+                const child = spawn(cmd, args, {detached: true, stdio: 'ignore'}); 
                 child.on('error', (err) => {
                     console.error(`Error launching REW (Linux/Other): ${err.message}`);
-                    if (err.code === 'ENOENT') {
+                    if (err.code === 'ENOENT') { 
                         console.error(`Hint: Ensure '${rewPath}' is executable and in your system's PATH or provide the full path.`);
                     }
-                    resolve(false);
-                });
-                child.unref();
-                resolve(true);
+                    resolve(false); 
+                }); 
+                child.unref(); 
+                resolve(true); 
             }
-        } catch (err) {
-            console.error(`Exception trying to launch REW: ${err.message}`);
+        } catch (err) { 
+            console.error(`Exception trying to launch REW: ${err.message}`); 
             resolve(false);
         }
-    });
-}
+    });}
 function checkRewApi(port = rewApiPort, timeout = 2000) {
     return new Promise((resolve) => {
         const options = {
-            hostname: '127.0.0.1',
+            hostname: '127.0.0.1', 
             port: port,
-            path: '/version',
+            path: '/version', 
             method: 'GET',
             timeout: timeout,
         };
@@ -1475,73 +1451,72 @@ function checkRewApi(port = rewApiPort, timeout = 2000) {
             res.on('data', (chunk) => { responseBody += chunk; });
             res.on('end', () => {
                 if (res.statusCode === 200) {
-                    resolve(true);
+                    resolve(true); 
                 } else {
                     console.warn(`[checkRewApi] Failed: Received status code ${res.statusCode}. Body: ${responseBody}`);
                     resolve(false);
                 }
             });
         });
-        req.on('error', (err) => {
-            if (err.code === 'ECONNREFUSED') {
-            } else {
-                console.warn(`[checkRewApi] Failed: Network error - ${err.message} (Code: ${err.code})`);
-            }
-            resolve(false);
+        req.on('error', (err) => { 
+            if (err.code === 'ECONNREFUSED') { 
+            } else { 
+                console.warn(`[checkRewApi] Failed: Network error - ${err.message} (Code: ${err.code})`); 
+            } 
+            resolve(false); 
         });
-        req.on('timeout', () => {
-            console.warn(`[checkRewApi] Failed: Request timed out after ${timeout}ms.`);
-            req.destroy();
-            resolve(false);
+        req.on('timeout', () => { 
+            console.warn(`[checkRewApi] Failed: Request timed out after ${timeout}ms.`); 
+            req.destroy(); 
+            resolve(false); 
         });
-        req.end();
-    });
-}
+        req.end(); 
+    });}
 async function ensureRewReady() {
     const platform = os.platform();
-    const procNameExe = 'roomeqwizard.exe';
-    const procNameApp = 'REW.app';
-    const procNameJava = 'java';
+    const procNameExe = 'roomeqwizard.exe'; 
+    const procNameApp = 'REW.app'; 
+    const procNameJava = 'java'; 
     let isRunning = false;
     if (platform === 'win32') {
         isRunning = await isProcessRunning(procNameExe);
-    } else if (platform === 'darwin') {
-        isRunning = await isProcessRunning('REW')
-            || await isProcessRunning('roomeqwizard')
-            || await isProcessRunning("java.*roomeqwizard");
-    } else {
+    } else if (platform === 'darwin') { 
+        isRunning = await isProcessRunning('REW') 
+                || await isProcessRunning('roomeqwizard') 
+                || await isProcessRunning("java.*roomeqwizard"); 
+    } else { 
         isRunning = await isProcessRunning('roomeqwizard') || await isProcessRunning("java.*roomeqwizard");
     }
     let isApiListening = false;
     if (isRunning) isApiListening = await checkRewApi(rewApiPort);
     if (isRunning && isApiListening) {
         console.log("REW is running and its API server is active. Good to go!");
-        return true;
+        return true; 
     }
     if (isRunning && !isApiListening) {
         console.warn(`Room EQ Wizard is open, but the API on port ${rewApiPort} did not respond correctly.`);
         console.warn("Possible reasons: REW is still starting up, API server is disabled (needs '-api' launch flag or setting in Prefs->API), firewall blocking, or different API port configured in REW.");
-        const { proceedAnyway } = await inquirer.prompt([{
-            type: 'confirm',
-            name: 'proceedAnyway',
-            message: `REW seems running, but the API isn't ready. Continue to open A1 Evo anyway? (May not function correctly without REW API)`,
-            default: false
-        }]);
-        return proceedAnyway;
+        const { proceedAnyway } = await inquirer.prompt([{ 
+            type: 'confirm', 
+            name: 'proceedAnyway', 
+            message: `REW seems running, but the API isn't ready. Continue to open A1 Evo anyway? (May not function correctly without REW API)`, 
+            default: false 
+        }]); 
+        return proceedAnyway; 
     }
     console.log("Room EQ Wizard (REW) is not running!");
-    const rewPath = findRewPath();
+    const rewPath = findRewPath(); 
     if (!rewPath) {
         console.error("Could not automatically find REW installation in common locations.");
         console.log(`Please start REW manually.`);
-        console.log("IMPORTANT: Ensure REW's API server is started (Preferences -> API -> Strat API server).");
-        const { proceedManual } = await inquirer.prompt([{
-            type: 'confirm',
-            name: 'proceedManual',
-            message: `Could not find REW automatically. Please start it manually (with API enabled).\nProceed to open A1 Evo once REW is ready?`,
-            default: true
+        console.log("IMPORTANT: Ensure REW's API server is started (Preferences -> API -> Strat API server)."); 
+        const { proceedManual } = await inquirer.prompt([{ 
+            type: 'confirm', 
+            name: 'proceedManual', 
+            message: `Could not find REW automatically. Please start it manually (with API enabled).\nProceed to open A1 Evo once REW is ready?`, 
+            default: true 
         }]);
-        return proceedManual;
+        return proceedManual; 
     }
     const { launchChoice } = await inquirer.prompt([{
         type: 'confirm',
@@ -1551,64 +1526,62 @@ async function ensureRewReady() {
     }]);
     if (!launchChoice) {
         console.log("User chose not to launch REW automatically. Please start it manually with the API enabled.");
-        const { proceedAfterManual } = await inquirer.prompt([{
-            type: 'confirm',
-            name: 'proceedAfterManual',
-            message: `Proceed to open A1 Evo once you believe REW is ready?`,
-            default: true
+        const { proceedAfterManual } = await inquirer.prompt([{ 
+            type: 'confirm', 
+            name: 'proceedAfterManual', 
+            message: `Proceed to open A1 Evo once you believe REW is ready?`, 
+            default: true 
         }]);
-        return proceedAfterManual;
+        return proceedAfterManual; 
     }
-    const memoryArg = "-Xmx4096m";
+    const memoryArg = "-Xmx4096m"; 
     const launchInitiated = await launchRew(rewPath, memoryArg);
     if (!launchInitiated) {
         console.error("Failed to execute the REW launch command.");
-        console.log("Please try starting REW manually with the API enabled.");
-        const { proceedError } = await inquirer.prompt([{
-            type: 'confirm',
-            name: 'proceedError',
-            message: `Failed to start REW automatically. Please start it manually (with API enabled).\nProceed to open A1 Evo once REW is ready?`,
-            default: true
+        console.log("Please try starting REW manually with the API enabled."); 
+        const { proceedError } = await inquirer.prompt([{ 
+            type: 'confirm', 
+            name: 'proceedError', 
+            message: `Failed to start REW automatically. Please start it manually (with API enabled).\nProceed to open A1 Evo once REW is ready?`, 
+            default: true 
         }]);
-        return proceedError;
+        return proceedError; 
     }
-    const waitTime = 8000;
+    const waitTime = 8000; 
     console.log(`Waiting ${waitTime / 1000} seconds for REW and its API server to initialize...`);
-    await delay(waitTime);
+    await delay(waitTime); 
     const isApiListeningAfterLaunch = await checkRewApi(rewApiPort);
     if (isApiListeningAfterLaunch) {
         console.log("REW launched and API server responded successfully. Proceeding...");
-        return true;
+        return true; 
     } else {
         console.error(`Launched REW, but the API on port ${rewApiPort} did not respond correctly within the wait time.`);
-        console.warn("Check REW preferences (API enabled?), firewall settings, or if REW failed to start properly.");
-        const { proceedFail } = await inquirer.prompt([{
-            type: 'confirm',
-            name: 'proceedFail',
-            message: `Started REW, but couldn't confirm API status on port ${rewApiPort}.\nContinue to open A1 Evo anyway? (May not function correctly)`,
-            default: false
+        console.warn("Check REW preferences (API enabled?), firewall settings, or if REW failed to start properly."); 
+        const { proceedFail } = await inquirer.prompt([{ 
+            type: 'confirm', 
+            name: 'proceedFail', 
+            message: `Started REW, but couldn't confirm API status on port ${rewApiPort}.\nContinue to open A1 Evo anyway? (May not function correctly)`, 
+            default: false 
         }]);
-        return proceedFail;
-    }
-}
+        return proceedFail; 
+    }}
 process.on('SIGINT', () => {
     console.log("\nCtrl+C detected. Shutting down...");
     if (mainServer) {
         mainServer.close(() => {
             console.log("Server closed.");
-            process.exit(0);
+            process.exit(0); 
         });
-        setTimeout(() => {
-            console.warn("Server close timed out. Forcing exit.");
-            process.exit(1);
-        }, 2000);
+        setTimeout(() => { 
+            console.warn("Server close timed out. Forcing exit."); 
+            process.exit(1); 
+        }, 2000); 
     } else {
-        process.exit(0);
+        process.exit(0); 
     }
 });
 function delay(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
+    return new Promise(resolve => setTimeout(resolve, ms));}
 async function getAvrInfoAndStatusForTransfer(socket) {
     const commandTimeout = TRANSFER_CONFIG.timeouts.command;
     try {
@@ -1637,9 +1610,8 @@ async function getAvrInfoAndStatusForTransfer(socket) {
     } catch (error) {
         console.error(`Failed to get AVR status/info: ${error.message}`);
         throw new Error(`Failed during AVR status/info retrieval: ${error.message}`);
-    }
-}
-async function sendTelnetCommands(ip, port = 23, lpf4LFE = 120) {
+    }}
+async function sendTelnetCommands(ip, port = 23, lpf4LFE = 120) { 
     return new Promise((resolve, reject) => {
         const client = new net.Socket();
         let selectedPreset = null;
@@ -1662,27 +1634,27 @@ async function sendTelnetCommands(ip, port = 23, lpf4LFE = 120) {
             }
             if (client && !client.destroyed) {
                 client.end();
-                setTimeout(() => {
-                    if (client && !client.destroyed) client.destroy();
+                setTimeout(() => { 
+                    if (client && !client.destroyed) client.destroy(); 
                 }, 1000);
-            }
-            if (error) {
-                console.error("Telnet cleanup with error:", error.message);
-                reject(error);
-            }
-            else {
-                resolve();
+            } 
+            if (error) { 
+                console.error("Telnet cleanup with error:", error.message); 
+                reject(error); 
+            } 
+            else { 
+                resolve(); 
             }
         };
         const proceedToCheckPreset = () => {
             if (!client || client.destroyed) return;
             console.log('Power confirmed. Checking preset support...');
             client.write('SPPR ?\r');
-            presetCheckTimer = setTimeout(() => {
-                if (!hasHandledPreset) {
-                    console.log('AVR does not support multiple presets.');
-                    hasHandledPreset = true;
-                    sendRemainingCommands();
+            presetCheckTimer = setTimeout(() => { 
+                if (!hasHandledPreset) { 
+                    console.log('AVR does not support multiple presets.'); 
+                    hasHandledPreset = true; 
+                    sendRemainingCommands(); 
                 }
             }, 4000);
         };
@@ -1698,17 +1670,17 @@ async function sendTelnetCommands(ip, port = 23, lpf4LFE = 120) {
             console.log('Checking power status...');
             isPowerConfirmed = false;
             client.write('ZM?\r');
-            powerCheckTimer = setTimeout(() => {
-                if (!isPowerConfirmed && client && !client.destroyed) {
+            powerCheckTimer = setTimeout(() => { 
+                if (!isPowerConfirmed && client && !client.destroyed) { 
                     //console.log('Telnet: No quick response to ZM?. Assuming OFF. Sending ZMON command...');
-                    client.write('ZMON\r');
+                    client.write('ZMON\r'); 
                     powerOnWaitTimer = setTimeout(() => {
                         if (!isPowerConfirmed) {
                             //console.log(`Power-on wait (${TRANSFER_CONFIG.timeouts.power / 1000}s) finished.`);
-                            isPowerConfirmed = true;
+                            isPowerConfirmed = true; 
                             proceedToCheckPreset();
                         }
-                    }, TRANSFER_CONFIG.timeouts.power);
+                    }, TRANSFER_CONFIG.timeouts.power); 
                 }
             }, 1000);
         });
@@ -1745,42 +1717,41 @@ async function sendTelnetCommands(ip, port = 23, lpf4LFE = 120) {
                     }
                     sendRemainingCommands();
                 });
-            } else if (selectedPreset && telnetOutputBuffer.includes(`SPPR ${selectedPreset}\r`)) {
+            } else if (selectedPreset && telnetOutputBuffer.includes(`SPPR ${selectedPreset}\r`)) { 
                 console.log(`Preset successfully set to ${selectedPreset}.`);
             }
         });
         function sendRemainingCommands() {
-            clearTimeout(presetCheckTimer);
+            clearTimeout(presetCheckTimer); 
             const commands = [];
             if (selectedPreset) {
-                commands.push(`SPPR ${selectedPreset}`);
+                commands.push(`SPPR ${selectedPreset}`); 
             }
-            commands.push('SSSWM LFE');
-            // commands.push('SSSWO LFE');
+            commands.push('SSSWM LFE'); 
+            // commands.push('SSSWO LFE'); 
             const lpfFormatted = lpf4LFE.toString();
-            commands.push(`SSLFL ${lpfFormatted}`);
+            commands.push(`SSLFL ${lpfFormatted}`); 
             let index = 0;
             function sendNext() {
-                if (index >= commands.length) {
-                    // console.log("Telnet: All commands sent.");
-                    cleanup();
+                if (index >= commands.length) { 
+                    // console.log("Telnet: All commands sent."); 
+                    cleanup(); 
                     return;
                 }
-                if (!client || client.destroyed) {
-                    console.error("Telnet: Connection lost before sending all commands.");
-                    cleanup(new Error("Telnet connection lost during command sequence."));
+                if (!client || client.destroyed) { 
+                    console.error("Telnet: Connection lost before sending all commands."); 
+                    cleanup(new Error("Telnet connection lost during command sequence.")); 
                     return;
                 }
                 const cmdToSend = commands[index];
                 // console.log(`Telnet: Sending command: ${cmdToSend}`);
                 client.write(cmdToSend + '\r');
                 index++;
-                commandSequenceTimer = setTimeout(sendNext, 1000);
+                commandSequenceTimer = setTimeout(sendNext, 1000); 
             }
-            sendNext();
+            sendNext(); 
         }
-    });
-}
+    });}
 async function selectOcaFile(searchDirectory) {
     //console.log(`Searching for calibration (.oca) files in: ${searchDirectory}`);
     let files;
@@ -1789,7 +1760,7 @@ async function selectOcaFile(searchDirectory) {
             throw new Error(`Directory not found: ${searchDirectory}`);
         }
         files = fs.readdirSync(searchDirectory)
-            .filter(file => path.extname(file).toLowerCase() === '.oca');
+                .filter(file => path.extname(file).toLowerCase() === '.oca');
     } catch (err) {
         throw new Error(`Error reading directory ${searchDirectory}: ${err.message}`);
     }
@@ -1803,15 +1774,15 @@ async function selectOcaFile(searchDirectory) {
                 return {
                     name: file,
                     path: fullPath,
-                    mtime: fs.statSync(fullPath).mtime
+                    mtime: fs.statSync(fullPath).mtime 
                 };
             } catch (statErr) {
                 console.warn(`Warning: Could not get stats for file ${fullPath}: ${statErr.message}`);
-                return null;
+                return null; 
             }
         })
-        .filter(fileInfo => fileInfo !== null)
-        .sort((a, b) => b.mtime - a.mtime);
+        .filter(fileInfo => fileInfo !== null) 
+        .sort((a, b) => b.mtime - a.mtime); 
     if (sortedFiles.length === 0) {
         throw new Error(`Found .oca files but could not read their modification times in: ${searchDirectory}`);
     }
@@ -1824,7 +1795,7 @@ async function selectOcaFile(searchDirectory) {
     const answer = await new Promise((resolve) => {
         rl.question(`\nSelect file number to transfer (1-${sortedFiles.length + 1}, Enter for 1): `, resolve);
     });
-    rl.close();
+    rl.close(); 
     const choice = answer.trim();
     if (choice === '') {
         console.log(`Using most recent file: ${sortedFiles[0].name}`);
@@ -1851,8 +1822,7 @@ async function selectOcaFile(searchDirectory) {
         return selectedFile.path;
     } else {
         throw new Error(`Invalid selection: ${choice}. Please enter a number between 1 and ${sortedFiles.length + 1}.`);
-    }
-}
+    }}
 function buildPacketConfig(totalFloats) {
     if (typeof totalFloats !== 'number' || isNaN(totalFloats) || totalFloats < 0) {
         console.warn(`buildPacketConfig called with invalid totalFloats: ${totalFloats} (Type: ${typeof totalFloats}). Returning default empty config.`);
@@ -1860,46 +1830,46 @@ function buildPacketConfig(totalFloats) {
             totalFloats: 0,
             packetCount: 0,
             fullPacketCountField: '00',
-            firstPacketFloats: 0,
-            midPacketFloats: 128,
+            firstPacketFloats: 0, 
+            midPacketFloats: 128, 
             lastPacketFloats: 0
         };
+    } 
+    if (totalFloats === 0) { 
+        console.warn("buildPacketConfig called with totalFloats === 0. Returning empty config."); 
+        return { totalFloats: 0, packetCount: 0, fullPacketCountField: '00', firstPacketFloats: 0, midPacketFloats: 128, lastPacketFloats: 0 }; 
     }
-    if (totalFloats === 0) {
-        console.warn("buildPacketConfig called with totalFloats === 0. Returning empty config.");
-        return { totalFloats: 0, packetCount: 0, fullPacketCountField: '00', firstPacketFloats: 0, midPacketFloats: 128, lastPacketFloats: 0 };
-    }
-    const firstPacketFloatPayload = 127;
-    const midPacketFloatPayload = 128;
+    const firstPacketFloatPayload = 127; 
+    const midPacketFloatPayload = 128; 
     let packetCount;
     let firstPacketActualFloats;
     let lastPacketFloats;
     if (totalFloats <= firstPacketFloatPayload) {
         packetCount = 1;
         firstPacketActualFloats = totalFloats;
-        lastPacketFloats = totalFloats;
+        lastPacketFloats = totalFloats; 
     }
     else {
         firstPacketActualFloats = firstPacketFloatPayload;
         const remainingFloats = totalFloats - firstPacketActualFloats;
         const numAdditionalPackets = Math.ceil(remainingFloats / midPacketFloatPayload);
-        packetCount = 1 + numAdditionalPackets;
+        packetCount = 1 + numAdditionalPackets; 
         const remainder = remainingFloats % midPacketFloatPayload;
         if (numAdditionalPackets === 0) {
-            lastPacketFloats = 0;
+            lastPacketFloats = 0; 
         } else if (remainder === 0) {
             lastPacketFloats = midPacketFloatPayload;
         } else {
             lastPacketFloats = remainder;
         }
-    }
+    } 
     const lastSequenceNumber = packetCount - 1;
-    if (lastSequenceNumber < 0 || lastSequenceNumber > 255) {
-        console.warn(`Warning: Calculated last sequence number (${lastSequenceNumber}) is out of valid byte range (0-255). Clamping or protocol issue?`);
-        if (lastSequenceNumber > 255) { throw new Error(`Calculated packet count (${packetCount}) exceeds protocol limit (256 packets).`); }
-        if (lastSequenceNumber < 0) {
-            console.error("CRITICAL ERROR in buildPacketConfig: lastSequenceNumber is negative.");
-            return { totalFloats: 0, packetCount: 0, lastSequenceNumField: '00', firstPacketFloats: 0, midPacketFloats: 128, lastPacketFloats: 0 };
+    if (lastSequenceNumber < 0 || lastSequenceNumber > 255) { 
+        console.warn(`Warning: Calculated last sequence number (${lastSequenceNumber}) is out of valid byte range (0-255). Clamping or protocol issue?`); 
+        if (lastSequenceNumber > 255) {throw new Error(`Calculated packet count (${packetCount}) exceeds protocol limit (256 packets).`);} 
+        if (lastSequenceNumber < 0) { 
+            console.error("CRITICAL ERROR in buildPacketConfig: lastSequenceNumber is negative."); 
+            return { totalFloats: 0, packetCount: 0, lastSequenceNumField: '00', firstPacketFloats: 0, midPacketFloats: 128, lastPacketFloats: 0 }; 
         }
     }
     const lastSequenceNumField = (lastSequenceNumber & 0xFF).toString(16).padStart(2, '0');
@@ -1911,17 +1881,16 @@ function buildPacketConfig(totalFloats) {
         midPacketFloats: midPacketFloatPayload,
         lastPacketFloats: lastPacketFloats
     };
-    return result;
-}
+    return result;}
 function javaFloatToFixed32bits(f) {
     const isNegative = f < 0.0;
     const absF = Math.abs(f);
-    let resultInt = 0;
+    let resultInt = 0; 
     if (absF >= 1.0) {
-        resultInt = 0x7FFFFFFF;
+        resultInt = 0x7FFFFFFF; 
     } else {
-        let f2 = absF;
-        resultInt = 0;
+        let f2 = absF; 
+        resultInt = 0; 
         for (let i2 = 0; i2 < 31; i2++) {
             resultInt <<= 1;
             f2 = (f2 - Math.trunc(f2)) * 2.0;
@@ -1930,22 +1899,19 @@ function javaFloatToFixed32bits(f) {
             }
         }
     }
-    if (isNegative) {
+    if (isNegative) { 
         resultInt = (~resultInt) | 0x80000000;
     }
-    return resultInt;
-}
+    return resultInt; }
 const floatToBufferLE = float => {
     const buf = Buffer.alloc(BYTES_PER_FLOAT);
     buf.writeFloatLE(float, 0);
-    return buf;
-};
+    return buf;};
 const fixed32IntToBufferLE = fixedInt => {
     fixedInt = Math.max(-2147483648, Math.min(2147483647, fixedInt));
     const buf = Buffer.alloc(BYTES_PER_FLOAT);
     buf.writeInt32LE(fixedInt, 0);
-    return buf;
-};
+    return buf;};
 const addCheckSum = hex => {
     if (typeof hex !== 'string' || hex.length % 2 !== 0) {
         const preview = typeof hex === 'string' ? hex.slice(0, 20) : 'Not a string';
@@ -1956,8 +1922,7 @@ const addCheckSum = hex => {
         checksum = (checksum + parseInt(hex.substring(i, i + 2), 16)) & 0xFF;
     }
     const checksumHex = checksum.toString(16).padStart(2, '0');
-    return Buffer.from(hex + checksumHex, 'hex');
-};
+    return Buffer.from(hex + checksumHex, 'hex');};
 function getChannelTypeByte(commandId, multEqType, isGriffin = false) {
     const entry = channelByteTable[commandId];
     if (!entry) {
@@ -1974,33 +1939,32 @@ function getChannelTypeByte(commandId, multEqType, isGriffin = false) {
         console.warn(`⚠ XT32 channel byte requested for ${commandId}, but eq2 mapping is null. Falling back...`);
         if (entry.neq2 !== null) return entry.neq2;
     }
-    if (multEqType === 'XT' || multEqType === 'MultEQ') {
-        if (entry.neq2 !== null) return entry.neq2;
-        console.warn(`⚠ ${multEqType} channel byte requested for ${commandId}, but neq2 mapping is null. Falling back...`);
+    if (multEqType === 'XT' || multEqType === 'MultEQ') { 
+        if (entry.neq2 !== null) return entry.neq2; 
+        console.warn(`⚠ ${multEqType} channel byte requested for ${commandId}, but neq2 mapping is null. Falling back...`); 
         if (entry.eq2 !== null) return entry.eq2;
     }
     if (entry.neq2 !== null) return entry.neq2;
     if (entry.eq2 !== null) return entry.eq2;
     if (isGriffin && entry.griffin !== null) return entry.griffin;
-    throw new Error(`No suitable channel byte mapping found for ${commandId} with MultEQ type ${multEqType} (Griffin: ${isGriffin}). Check channelByteTable.`);
-}
+    throw new Error(`No suitable channel byte mapping found for ${commandId} with MultEQ type ${multEqType} (Griffin: ${isGriffin}). Check channelByteTable.`);}
 const createCommandSender = (socket) => {
-    return async (payload, label, {
+    return async (payload, label, { 
         timeout = TRANSFER_CONFIG.timeouts.command,
         addChecksum = true,
         expectAck = true
     } = {}) => {
         return new Promise((resolve, reject) => {
-            let packet;
+            let packet; 
             try {
                 if (addChecksum) {
                     if (typeof payload !== 'string') {
                         return reject(new Error(`[${label}] Payload must be a hex string when addChecksum is true.`));
                     }
-                    packet = addCheckSum(payload);
+                    packet = addCheckSum(payload); 
                 } else {
                     if (Buffer.isBuffer(payload)) {
-                        packet = payload;
+                        packet = payload; 
                     } else if (typeof payload === 'string') {
                         packet = Buffer.from(payload, 'hex');
                     } else {
@@ -2050,7 +2014,7 @@ const createCommandSender = (socket) => {
                         }
                     }, timeout);
                 }
-                if (expectAck && responseBuffer.length > 2048 && !textResponse.includes('ACK')) {
+                if (expectAck && responseBuffer.length > 2048 && !textResponse.includes('ACK')) { 
                     console.warn(`[${label}] Large response buffer (${responseBuffer.length} bytes) without ACK. Possible issue.`);
                 }
             };
@@ -2072,7 +2036,7 @@ const createCommandSender = (socket) => {
             socket.on('error', errorHandler);
             socket.once('close', closeHandler);
             try {
-                socket.write(packet, (err) => {
+                socket.write(packet, (err) => { 
                     if (err) {
                         if (!cleanedUp) cleanup(false, `Socket write failed: ${err.message}`, true);
                     }
@@ -2081,9 +2045,8 @@ const createCommandSender = (socket) => {
                 if (!cleanedUp) cleanup(false, `Synchronous send error: ${err.message}`, true);
             }
         });
-    };
-};
-function buildAvrPacket(commandName, jsonPayloadString, seqNum = 0, lastSeqNum = 0) {
+    };};
+function buildAvrPacket(commandName, jsonPayloadString, seqNum = 0, lastSeqNum = 0) { 
     const commandBytes = Buffer.from(commandName, 'utf8');
     const parameterBytes = Buffer.from(jsonPayloadString, 'utf8');
     const parameterLength = parameterBytes.length;
@@ -2091,33 +2054,32 @@ function buildAvrPacket(commandName, jsonPayloadString, seqNum = 0, lastSeqNum =
     if (parameterLength > 0xFFFF) {
         throw new Error(`JSON Payload too large (${parameterLength} bytes), exceeds 65535 limit.`);
     }
-    const headerFixedOverhead = 1 + 2 + 1 + 1 + 1 + 2;
-    const totalLength = headerFixedOverhead + commandBytesLength + parameterLength + 1;
+    const headerFixedOverhead = 1 + 2 + 1 + 1 + 1 + 2; 
+    const totalLength = headerFixedOverhead + commandBytesLength + parameterLength + 1; 
     if (totalLength > 0xFFFF) {
         throw new Error(`Total packet size (${totalLength} bytes) exceeds 65535 limit.`);
     }
     const buffer = Buffer.alloc(totalLength);
     let offset = 0;
-    buffer.writeUInt8(0x54, offset); offset += 1;
-    buffer.writeUInt16BE(totalLength, offset); offset += 2;
-    buffer.writeUInt8(seqNum & 0xFF, offset); offset += 1;
-    buffer.writeUInt8(lastSeqNum & 0xFF, offset); offset += 1;
+    buffer.writeUInt8(0x54, offset); offset += 1; 
+    buffer.writeUInt16BE(totalLength, offset); offset += 2; 
+    buffer.writeUInt8(seqNum & 0xFF, offset); offset += 1; 
+    buffer.writeUInt8(lastSeqNum & 0xFF, offset); offset += 1; 
     commandBytes.copy(buffer, offset); offset += commandBytes.length;
-    buffer.writeUInt8(0x00, offset); offset += 1;
-    buffer.writeUInt16BE(parameterLength, offset); offset += 2;
-    parameterBytes.copy(buffer, offset); offset += parameterBytes.length;
+    buffer.writeUInt8(0x00, offset); offset += 1; 
+    buffer.writeUInt16BE(parameterLength, offset); offset += 2; 
+    parameterBytes.copy(buffer, offset); offset += parameterBytes.length; 
     let checksum = 0;
     for (let i = 0; i < offset; i++) {
-        checksum = (checksum + buffer[i]) & 0xFF;
+        checksum = (checksum + buffer[i]) & 0xFF; 
     }
-    buffer.writeUInt8(checksum, offset); offset += 1;
+    buffer.writeUInt8(checksum, offset); offset += 1; 
     if (offset !== totalLength) {
         console.error(`buildAvrPacket ERROR: Final offset ${offset} !== Calculated Total Length ${totalLength}`);
-        console.error(`  Command: ${commandName}, Payload: ${jsonPayloadString.substring(0, 50)}...`);
+        console.error(`  Command: ${commandName}, Payload: ${jsonPayloadString.substring(0,50)}...`);
         throw new Error("Packet construction length mismatch!");
     }
-    return buffer;
-}
+    return buffer;}
 function mapChannelIdForSetDat(id) {
     switch (id) {
         case 'SWLFE': return 'SW1';
@@ -2141,103 +2103,119 @@ function mapChannelIdForSetDat(id) {
         case 'SWMIX2': return 'SW2';
         case 'SWMIX3': return 'SW3';
         case 'SWMIX4': return 'SW4';
-        default: return id;
-    }
-}
+        default: return id; 
+    }}
 function prepareParamsInOrder(avrStatus, rawChSetup, filterData, sortedChannelInfo, multEqType, hasGriffinLiteDSP) {
     const params = [];
     const DfSettingDataParameters = [
-        "AmpAssign",
-        "AssignBin",
-        "SpConfig",
-        "Distance",
-        "ChLevel",
-        "Crossover",
-        "AudyFinFlg",
-        "AudyDynEq",
-        "AudyEqRef",
-        "AudyDynVol",
-        "AudyDynSet",
-        "AudyMultEq",
-        "AudyEqSet",
-        "AudyLfc",
-        "AudyLfcLev",
-        "SWSetup"
+        "AmpAssign", "AssignBin", "SpConfig", "Distance", "ChLevel", "Crossover",
+        "AudyFinFlg", "AudyDynEq", "AudyEqRef", "AudyDynVol", "AudyDynSet",
+        "AudyMultEq", "AudyEqSet", "AudyLfc", "AudyLfcLev", "SWSetup"
     ];
     const sourceAmpAssign = avrStatus.AmpAssign;
     const sourceAssignBin = avrStatus.AssignBin;
-    if (!sourceAmpAssign || !sourceAssignBin) {
-        throw new Error("Cannot build SET_SETDAT: AmpAssign or AssignBin missing from AVR Status.");
-    }
+    if (!sourceAmpAssign || !sourceAssignBin) throw new Error("AmpAssign or AssignBin missing from AVR Status. This is a critical prerequisite!");
     const calibrationSettings = {
-        AudyFinFlg: "NotFin",
-        AudyDynEq: false,
-        AudyEqRef: 0,
-        AudyDynVol: false,
-        AudyDynSet: "L",
-        AudyMultEq: true,
-        AudyEqSet: "Flat",
-        AudyLfc: false,
-        AudyLfcLev: 3
+        AudyFinFlg: "NotFin", AudyDynEq: false, AudyEqRef: 0, AudyDynVol: false,
+        AudyDynSet: "L", AudyMultEq: true, AudyEqSet: "Flat", AudyLfc: false, AudyLfcLev: 3
     };
     let subSetup = null;
     const useSWSetup = avrStatus.SWSetup && typeof avrStatus.SWSetup === 'object' && avrStatus.SWSetup.SWNum !== undefined;
     if (useSWSetup) {
         const swNum = parseInt(avrStatus.SWSetup.SWNum, 10);
-        if (!isNaN(swNum) && swNum > 0) subSetup = { SWNum: swNum, SWMode: "Standard", SWLayout: "N/A" };
+        if (!isNaN(swNum) && swNum > 0) subSetup = {SWNum: swNum, SWMode: "Standard", SWLayout: "N/A"};
+    }
+    if (!filterData || !filterData.channels || !Array.isArray(filterData.channels)) throw new Error("Invalid or missing 'channels' array in OCA file data!");
+    if (!rawChSetup || !Array.isArray(rawChSetup)) throw new Error("Missing or invalid channel status!");
+    if (!sortedChannelInfo || !Array.isArray(sortedChannelInfo)) throw new Error("Missing or invalid active channels list!");
+    const avrRecognizedMappedIds = new Set();
+    for (const entry of rawChSetup) {
+        const id = Object.keys(entry)[0];
+        if (id) {
+             avrRecognizedMappedIds.add(mapChannelIdForSetDat(id));
+        } else {
+            throw new Error("Invalid channel ID key!");
+        }
+    }
+    for (const ocaChannel of filterData.channels) {
+        if (!ocaChannel.commandId) throw new Error("OCA Error: Channel entry in '.oca' file is missing its 'commandId'. Transfer cannot proceed.");
+        const mappedOcaChannelId = mapChannelIdForSetDat(ocaChannel.commandId);
+        if (!avrRecognizedMappedIds.has(mappedOcaChannelId)) throw new Error(`Configuration Mismatch Error: Channel ${mappedOcaChannelId} (from '.oca' file's commandId: '${ocaChannel.commandId}') is defined in the '.oca' file, but this channel ID is NOT RECOGNIZED by the AVR in its current setup!`);
     }
     const finalSpConfig = [];
     const distanceArray = [];
     const chLevelArray = [];
     const crossoverArray = [];
-    if (!filterData || !filterData.channels || !Array.isArray(filterData.channels)) {
-        throw new Error("Cannot build SET_SETDAT: Invalid or missing 'channels' array in OCA filter data.");
-    }
-    if (!sortedChannelInfo || !Array.isArray(sortedChannelInfo)) {
-        throw new Error("Cannot build SET_SETDAT: Missing or invalid sortedChannelInfo.");
-    }
     for (const channelInfo of sortedChannelInfo) {
-        const originalChannelId = channelInfo.id;
-        const mappedChannelId = mapChannelIdForSetDat(originalChannelId);
-        const setupEntry = rawChSetup.find(entry => Object.keys(entry)[0] === originalChannelId);
-        const speakerType = setupEntry ? (setupEntry[originalChannelId] || 'S') : 'S';
-        if (!setupEntry) console.warn(`WARN (SET_SETDAT): Could not find raw setup entry for active channel ${originalChannelId}. Using default type 'S'.`);
-        finalSpConfig.push({ [mappedChannelId]: speakerType });
-        const ocaChannel = filterData.channels.find(ch => mapChannelIdForSetDat(ch.commandId) === mappedChannelId);
-        if (!ocaChannel) {
-            console.warn(`WARN (SET_SETDAT): Could not find OCA data for active/sorted channel ${mappedChannelId}. Omitting its Distance/Level/Crossover.`);
-            continue;
-        }
-        if (ocaChannel.distanceInMeters !== undefined && ocaChannel.distanceInMeters !== null) {
-            distanceArray.push({ [mappedChannelId]: Math.round(ocaChannel.distanceInMeters * 100) });
+        const avrOriginalChannelId = channelInfo.id;
+        const avrMappedChannelId = channelInfo.mappedId;
+        const avrSetupEntry = rawChSetup.find(entry => Object.keys(entry)[0] === avrOriginalChannelId);
+        let avrReportedSpeakerType = 'S';
+        if (avrSetupEntry) {
+            avrReportedSpeakerType = avrSetupEntry[avrOriginalChannelId];
+            if (!avrReportedSpeakerType || typeof avrReportedSpeakerType !== 'string') {
+                throw new Error(`AVR reported an invalid type for ${avrOriginalChannelId}: ${avrReportedSpeakerType}!`);
+            }
         } else {
-            console.warn(`WARN (SET_SETDAT): Distance missing for ${mappedChannelId} in OCA file.`);
+            throw new Error(`Could not find setup entry for active channel ${avrOriginalChannelId}!`);
         }
-        if (ocaChannel.trimAdjustmentInDbs !== undefined && ocaChannel.trimAdjustmentInDbs !== null) {
-            chLevelArray.push({ [mappedChannelId]: Math.round(ocaChannel.trimAdjustmentInDbs * 10) });
-        } else {
-            console.warn(`WARN (SET_SETDAT): Trim/Level missing for ${mappedChannelId} in OCA file.`);
-        }
-        if (mappedChannelId.startsWith('SW') || mappedChannelId === 'LFE') {
-            crossoverArray.push({ [mappedChannelId]: "F" });
-        } else if (ocaChannel.xover !== undefined && ocaChannel.xover !== null) {
-            let xoverValue;
-            if (typeof ocaChannel.xover === 'string' && ocaChannel.xover.toUpperCase() === 'FULL') {
-                xoverValue = "F";
-            } else {
-                const numericXover = Number(ocaChannel.xover);
-                if (!isNaN(numericXover) && numericXover >= 40 && numericXover <= 250) {
-                    xoverValue = numericXover;
-                } else {
-                    console.warn(`WARN (SET_SETDAT): Invalid crossover value (${ocaChannel.xover}) for ${mappedChannelId}. Skipping.`);
-                    xoverValue = undefined;
+        const ocaChannel = filterData.channels.find(ch => mapChannelIdForSetDat(ch.commandId) === avrMappedChannelId);
+        if (!ocaChannel) throw new Error(`OCA Data Mismatch Error: Channel ${avrMappedChannelId} (from AVR's active channel ${avrOriginalChannelId}) is active on the AVR but NOT defined in the .oca file. Transfer cannot proceed.`);
+        let ocaSpeakerTypeForThisChannel = ocaChannel.speakerType;
+        if (ocaSpeakerTypeForThisChannel !== 'S' && ocaSpeakerTypeForThisChannel !== 'E') throw new Error(`OCA Error: Channel ${avrMappedChannelId} in '.oca' file has an invalid speakerType '${ocaSpeakerTypeForThisChannel}'. Must be 'S' or 'E'.`);
+        let finalTypeForSpConfig = avrReportedSpeakerType;
+        const isPotentiallySubwoofer = avrMappedChannelId.startsWith('SW') || avrMappedChannelId === 'LFE';
+        if (isPotentiallySubwoofer) {
+            if (ocaSpeakerTypeForThisChannel === 'E') {
+                if (avrReportedSpeakerType === 'N') {
+                    throw new Error(`⚠️ Subwoofer ${avrMappedChannelId} is 'N' on AVR!`);
+                } else if (avrReportedSpeakerType !== 'E') {
+                    throw new Error(`⚠️ Subwoofer ${avrMappedChannelId} is of unknown type on AVR!`);
                 }
             }
-            if (xoverValue !== undefined) {
-                crossoverArray.push({ [mappedChannelId]: xoverValue });
-            }
         } else {
-            console.warn(`WARN (SET_SETDAT): Crossover missing for ${mappedChannelId} in OCA file.`);
+            if (ocaSpeakerTypeForThisChannel === 'S') {
+                if (avrReportedSpeakerType === 'L') {
+                    finalTypeForSpConfig = 'S';
+                    console.warn(`⚠️ OVERRIDE: Speaker ${avrMappedChannelId} is 'L' (Large) on AVR. '.oca' file specifies 'S'. Forcing to 'small'.`);
+                } else if (avrReportedSpeakerType === 'N') {
+                    throw new Error(`⚠️ Speaker ${avrMappedChannelId} is 'N' on AVR!`);
+                } 
+            }
+        }
+        finalSpConfig.push({ [avrMappedChannelId]: finalTypeForSpConfig });
+        if (ocaChannel.distanceInMeters !== undefined && ocaChannel.distanceInMeters !== null) {
+            distanceArray.push({ [avrMappedChannelId]: Math.round(ocaChannel.distanceInMeters * 100) });
+        } else {
+            throw new Error(`OCA Error: Distance missing for ${avrMappedChannelId} (orig: ${avrOriginalChannelId}) in OCA file!`);
+        }
+        if (ocaChannel.trimAdjustmentInDbs !== undefined && ocaChannel.trimAdjustmentInDbs !== null) {
+            chLevelArray.push({ [avrMappedChannelId]: Math.round(ocaChannel.trimAdjustmentInDbs * 10) });
+        } else {
+            throw new Error(`OCA Error: Trim/Level missing for ${avrMappedChannelId} (orig: ${avrOriginalChannelId}) in OCA file!`);
+        }
+        const isEffectivelySubwoofer = finalTypeForSpConfig === 'E';
+
+        if (isEffectivelySubwoofer) {
+            crossoverArray.push({ [avrMappedChannelId]: "F" });
+        } else {
+            if (finalTypeForSpConfig !== 'S') console.warn(`CRITICAL WARNING (Crossover): Speaker ${avrMappedChannelId} ended up with type '${finalTypeForSpConfig}' not 'S'. Crossover logic might be unreliable. OCA 'speakerType' was '${ocaSpeakerTypeForThisChannel}'.`);
+            if (ocaChannel.xover !== undefined && ocaChannel.xover !== null) {
+                let xoverValueToSet;
+                if (typeof ocaChannel.xover === 'string' && ocaChannel.xover.toUpperCase() === 'F') {
+                    throw new Error(`OCA Error: Speaker ${avrMappedChannelId} (intended type 'S') in '.oca' file is specified with "F" crossover, which is invalid for a small speaker.`);
+                } else {
+                    const numericXover = Number(ocaChannel.xover);
+                    if (!isNaN(numericXover) && numericXover >= 40 && numericXover <= 250) {
+                        xoverValueToSet = numericXover;
+                    } else {
+                        throw new Error(`OCA Error: Invalid numeric crossover value ('${ocaChannel.xover}') for speaker ${avrMappedChannelId} in '.oca' file. Must be between 40 and 250.`);
+                    }
+                }
+                crossoverArray.push({ [avrMappedChannelId]: xoverValueToSet });
+            } else {
+                throw new Error(`OCA Error: Crossover missing for speaker ${avrMappedChannelId} (intended type 'S') in '.oca' file!`);
+            }
         }
     }
     for (const key of DfSettingDataParameters) {
@@ -2260,12 +2238,13 @@ function prepareParamsInOrder(avrStatus, rawChSetup, filterData, sortedChannelIn
             case "AudyLfcLev": value = calibrationSettings.AudyLfcLev; break;
             case "SWSetup": value = subSetup; break;
         }
-        if (value !== undefined && value !== null) { params.push({ key, value }); }
+        if (value !== undefined && value !== null) {
+            params.push({ key, value });
+        }
     }
-    return params;
-}
+    return params;}
 async function sendSetDatCommand(sendFunction, avrStatus, rawChSetup, filterData, sortedChannelInfo, multEqType, hasGriffinLiteDSP) {
-    const BINARY_PACKET_THRESHOLD = 510;
+    const BINARY_PACKET_THRESHOLD = 510; 
     const COMMAND_NAME = 'SET_SETDAT';
     // console.log("   Preparing SET_SETDAT command parameters...");
     let orderedParams;
@@ -2273,14 +2252,14 @@ async function sendSetDatCommand(sendFunction, avrStatus, rawChSetup, filterData
         orderedParams = prepareParamsInOrder(avrStatus, rawChSetup, filterData, sortedChannelInfo, multEqType, hasGriffinLiteDSP);
     } catch (error) {
         console.error(`Error preparing SET_SETDAT parameters: ${error.message}`);
-        throw new Error(`Failed to prepare SET_SETDAT command: ${error.message}`);
+        throw new Error(`Failed to prepare SET_SETDAT command: ${error.message}`); 
     }
     if (orderedParams.length === 0) {
         console.warn("No parameters generated for SET_SETDAT. Skipping command.");
-        return;
+        return; 
     }
-    let packetsJsonStrings = [];
-    let currentPacketPayload = {};
+    let packetsJsonStrings = []; 
+    let currentPacketPayload = {}; 
     for (let i = 0; i < orderedParams.length; i++) {
         const paramInfo = orderedParams[i];
         const paramKey = paramInfo.key;
@@ -2292,24 +2271,24 @@ async function sendSetDatCommand(sendFunction, avrStatus, rawChSetup, filterData
         try {
             testJsonString = JSON.stringify(testPacketPayload);
             testBuffer = buildAvrPacket(COMMAND_NAME, testJsonString, 0, 0);
-        } catch (buildError) {
-            console.error(`!!! ERROR building test packet for parameter "${paramKey}": ${buildError.message}`);
-            console.error(`   Payload causing issue:`, testPacketPayload);
+        } catch (buildError) { 
+            console.error(`!!! ERROR building test packet for parameter "${paramKey}": ${buildError.message}`); 
+            console.error(`   Payload causing issue:`, testPacketPayload); 
             throw new Error(`Failed to build test packet for ${paramKey}. Cannot proceed.`);
         }
         if (testBuffer.length > BINARY_PACKET_THRESHOLD) {
-            if (Object.keys(currentPacketPayload).length > 0) {
+            if (Object.keys(currentPacketPayload).length > 0) { 
                 packetsJsonStrings.push(JSON.stringify(currentPacketPayload));
             } else {
                 console.error(`!!! ERROR: Parameter "${paramKey}" payload alone is too large (${testBuffer.length} bytes, Threshold: ${BINARY_PACKET_THRESHOLD}). Cannot send.`);
                 throw new Error(`Parameter ${paramKey} alone exceeds SET_SETDAT size limit (${BINARY_PACKET_THRESHOLD} bytes).`);
             }
-            currentPacketPayload = { [paramKey]: paramValue };
-            let singleParamJson = JSON.stringify(currentPacketPayload);
-            let singleParamBuffer = buildAvrPacket(COMMAND_NAME, singleParamJson, 0, 0);
-            if (singleParamBuffer.length > BINARY_PACKET_THRESHOLD) {
-                console.error(`!!! INTERNAL ERROR: Single parameter "${paramKey}" packet size (${singleParamBuffer.length}) still exceeds threshold after check. Aborting.`);
-                throw new Error(`Parameter ${paramKey} somehow exceeds size limit even when alone.`);
+            currentPacketPayload = { [paramKey]: paramValue }; 
+            let singleParamJson = JSON.stringify(currentPacketPayload); 
+            let singleParamBuffer = buildAvrPacket(COMMAND_NAME, singleParamJson, 0, 0); 
+            if (singleParamBuffer.length > BINARY_PACKET_THRESHOLD) { 
+                console.error(`!!! INTERNAL ERROR: Single parameter "${paramKey}" packet size (${singleParamBuffer.length}) still exceeds threshold after check. Aborting.`); 
+                throw new Error(`Parameter ${paramKey} somehow exceeds size limit even when alone.`); 
             }
         } else {
             currentPacketPayload[paramKey] = paramValue;
@@ -2328,42 +2307,41 @@ async function sendSetDatCommand(sendFunction, avrStatus, rawChSetup, filterData
         const label = `SET_SETDAT Pkt ${i + 1}/${totalPackets}`;
         try {
             await sendFunction(packetBuffer.toString('hex'), label, {
-                addChecksum: false,
-                expectAck: true,
-                timeout: TRANSFER_CONFIG.timeouts.command
+                addChecksum: false, 
+                expectAck: true, 
+                timeout: TRANSFER_CONFIG.timeouts.command 
             });
-        } catch (error) {
-            console.error(`!!! FAILED sending ${label}: ${error.message}`);
+        } catch (error) { 
+            console.error(`!!! FAILED sending ${label}: ${error.message}`); 
             throw new Error(`Failed to send ${label}. Aborting transfer.`);
         }
     }
     // console.log("   SET_SETDAT command(s) sent successfully.");
-    await delay(20);
-}
+    await delay(20); }
 function processFilterDataForTransfer(channelFilterData, multEqType, lookupChannelId) {
     let processedFilter = channelFilterData.filter || [];
     let processedFilterLV = channelFilterData.filterLV || [];
     const isSub = lookupChannelId.startsWith('SW') || lookupChannelId === 'LFE';
     if (multEqType === "XT32") {
         try {
-            processedFilter = convertXT32(processedFilter);
-            processedFilterLV = convertXT32(processedFilterLV);
-        } catch (decimationError) {
-            console.error(`      ERROR during XT32 decimation for ${lookupChannelId}: ${decimationError.message}`);
+            processedFilter = convertXT32(processedFilter); 
+            processedFilterLV = convertXT32(processedFilterLV); 
+        } catch (decimationError) { 
+            console.error(`      ERROR during XT32 decimation for ${lookupChannelId}: ${decimationError.message}`); 
             throw new Error(`XT32 decimation failed for ${lookupChannelId}`);
         }
         const expectedLength = isSub ? filterConfigs.xt32Sub.outputLength : filterConfigs.xt32Speaker.outputLength;
-        if (processedFilter.length !== expectedLength) {
+        if (processedFilter.length !== expectedLength) { 
             console.warn(`      WARNING: Post-decimation filter length for XT32 channel ${lookupChannelId} is ${processedFilter.length}, expected ${expectedLength}.`);
         }
-        if (processedFilterLV.length !== expectedLength) {
+        if (processedFilterLV.length !== expectedLength) { 
             console.warn(`      WARNING: Post-decimation filterLV length for XT32 channel ${lookupChannelId} is ${processedFilterLV.length}, expected ${expectedLength}.`);
         }
     } else {
         let expectedLength = 0;
-        if (multEqType === 'XT') {
-            expectedLength = EXPECTED_NON_XT32_FLOAT_COUNTS.XT.speaker;
-        } else if (multEqType === 'MultEQ') {
+        if (multEqType === 'XT') { 
+            expectedLength = EXPECTED_NON_XT32_FLOAT_COUNTS.XT.speaker; 
+        } else if (multEqType === 'MultEQ') { 
             expectedLength = isSub ? EXPECTED_NON_XT32_FLOAT_COUNTS.MultEQ.sub : EXPECTED_NON_XT32_FLOAT_COUNTS.MultEQ.speaker;
         }
         if (expectedLength > 0) {
@@ -2380,11 +2358,10 @@ function processFilterDataForTransfer(channelFilterData, multEqType, lookupChann
     return {
         filter: processedFilter,
         filterLV: processedFilterLV
-    };
-}
-function generatePacketsForTransfer(coeffBuffers, channelConfig, tc, sr, channelByte) {
+    };}
+function generatePacketsForTransfer(coeffBuffers, channelConfig, tc, sr, channelByte) { 
     const packets = [];
-    let floatsProcessed = 0;
+    let floatsProcessed = 0; 
     const totalFloatsToSend = coeffBuffers.length;
     for (let packetIndex = 0; packetIndex < channelConfig.packetCount; packetIndex++) {
         const isFirstPacket = packetIndex === 0;
@@ -2400,21 +2377,21 @@ function generatePacketsForTransfer(coeffBuffers, channelConfig, tc, sr, channel
         if (numFloatsInPacket <= 0) {
             continue;
         }
-        if (floatsProcessed >= totalFloatsToSend && numFloatsInPacket > 0) {
-            console.warn(`WARN (Buffer Gen): Attempting to generate packet ${packetIndex} for ${numFloatsInPacket} float-buffers, but all ${totalFloatsToSend} already processed.`);
+        if (floatsProcessed >= totalFloatsToSend && numFloatsInPacket > 0) { 
+            console.warn(`WARN (Buffer Gen): Attempting to generate packet ${packetIndex} for ${numFloatsInPacket} float-buffers, but all ${totalFloatsToSend} already processed.`); 
             break;
-        }
-        if (floatsProcessed + numFloatsInPacket > totalFloatsToSend) {
+        } 
+        if (floatsProcessed + numFloatsInPacket > totalFloatsToSend) { 
             console.warn(`WARN (Buffer Gen): Packet ${packetIndex} requests ${numFloatsInPacket} float-buffers, but only ${totalFloatsToSend - floatsProcessed} remaining. Adjusting count.`);
             numFloatsInPacket = totalFloatsToSend - floatsProcessed;
-            if (numFloatsInPacket <= 0) break;
+            if (numFloatsInPacket <= 0) break; 
         }
-        const setCoefDT_Bytes = Buffer.from('5345545f434f45464454', 'hex');
+        const setCoefDT_Bytes = Buffer.from('5345545f434f45464454', 'hex'); 
         let paramHeaderParts = [];
         if (isFirstPacket) {
             const channelByteHex = channelByte.toString(16).padStart(2, '0');
             const firstPacketInfoHex = tc + sr + channelByteHex + '00';
-            paramHeaderParts.push(Buffer.from(firstPacketInfoHex, 'hex'));
+            paramHeaderParts.push(Buffer.from(firstPacketInfoHex, 'hex')); 
         }
         const payloadCoeffsSlice = coeffBuffers.slice(floatsProcessed, floatsProcessed + numFloatsInPacket);
         const currentPayloadBuffer = Buffer.concat(payloadCoeffsSlice);
@@ -2424,10 +2401,10 @@ function generatePacketsForTransfer(coeffBuffers, channelConfig, tc, sr, channel
         sizeFieldBuffer.writeUInt16BE(paramsAndDataLength, 0);
         const commandHeaderBuffer = Buffer.concat([
             setCoefDT_Bytes,
-            Buffer.from([0x00]),
+            Buffer.from([0x00]), 
             sizeFieldBuffer
         ]);
-        const totalPacketLengthField = 1 + 2 + 1 + 1 + commandHeaderBuffer.length + paramsAndDataBuffer.length + 1;
+        const totalPacketLengthField = 1 + 2 + 1 + 1 + commandHeaderBuffer.length + paramsAndDataBuffer.length + 1; 
         if (totalPacketLengthField > 0xFFFF) {
             throw new Error(`Calculated total packet length ${totalPacketLengthField} exceeds 65535 limit for packet ${packetIndex}.`);
         }
@@ -2449,30 +2426,29 @@ function generatePacketsForTransfer(coeffBuffers, channelConfig, tc, sr, channel
         }
         const checksumBuffer = Buffer.from([checksum]);
         const finalPacketBuffer = Buffer.concat([packetWithoutChecksum, checksumBuffer]);
-        packets.push({ bufferData: finalPacketBuffer });
+        packets.push({ bufferData: finalPacketBuffer }); 
         floatsProcessed += numFloatsInPacket;
     }
     if (floatsProcessed !== totalFloatsToSend) {
         console.warn(`WARN (Buffer Gen): generatePackets processed ${floatsProcessed} float-buffers, but expected ${totalFloatsToSend}.`);
     }
-    return packets;
-}
+    return packets;}
 async function finalizeTransfer(dataType, sendFunction, coefWaitTime) {
     console.log("\nFinalizing filter transfer...");
-    const finalizeTimeout = TRANSFER_CONFIG.timeouts.finalize;
+    const finalizeTimeout = TRANSFER_CONFIG.timeouts.finalize; 
     try {
-        const finzCoefsHex = '540013000046494e5a5f434f4546530000006d';
+        const finzCoefsHex = '540013000046494e5a5f434f4546530000006d'; 
         await sendFunction(finzCoefsHex, 'FINZ_COEFS', {
-            timeout: finalizeTimeout,
+            timeout: finalizeTimeout, 
             expectAck: true,
-            addChecksum: false
+            addChecksum: false 
         });
         // console.log("   FINZ_COEFS command acknowledged.");
-    } catch (e) {
-        console.error(`!!! FAILED sending FINZ_COEFS: ${e.message}`);
+    } catch (e) { 
+        console.error(`!!! FAILED sending FINZ_COEFS: ${e.message}`); 
         throw new Error("Failed to finalize coefficient processing (FINZ_COEFS).");
     }
-    await delay(20);
+    await delay(20); 
     // console.log("   Setting finalization flag (AudyFinFlg = Fin)...");
     const finalFlagPayload = { "AudyFinFlg": "Fin" };
     let finalFlagPacketBuffer;
@@ -2485,7 +2461,7 @@ async function finalizeTransfer(dataType, sendFunction, coefWaitTime) {
     }
     try {
         await sendFunction(finalFlagPacketBuffer.toString('hex'), 'SET_AUDYFINFLG_FIN', {
-            addChecksum: false,
+            addChecksum: false, 
             expectAck: true,
             timeout: TRANSFER_CONFIG.timeouts.command
         });
@@ -2494,21 +2470,20 @@ async function finalizeTransfer(dataType, sendFunction, coefWaitTime) {
         console.error(`!!! FAILED setting final flag (AudyFinFlg=Fin): ${e.message}`);
         throw new Error("Failed to set final Audyssey flag (AudyFinFlg=Fin).");
     }
-    await delay(20);
+    await delay(20); 
     // console.log("   Exiting Calibration Mode (EXIT_AUDMD)...");
     try {
         const exitAudmdHex = '5400130000455849545f4155444d440000006b';
         await sendFunction(exitAudmdHex, 'EXIT_AUDMD', {
             timeout: TRANSFER_CONFIG.timeouts.command,
-            expectAck: true,
-            addChecksum: false
+            expectAck: true, 
+            addChecksum: false 
         });
         //console.log("   Exited Calibration Mode successfully.");
-    } catch (e) {
-        console.error(`!!! FAILED exiting calibration mode (EXIT_AUDMD): ${e.message}`);
+    } catch (e) { 
+        console.error(`!!! FAILED exiting calibration mode (EXIT_AUDMD): ${e.message}`); 
         console.warn("   -> AVR might still be in calibration mode. Power cycle might be needed.");
-    }
-}
+    }}
 async function runCalibrationTransfer(targetIp, basePathForOcaSearch) {
     let client = null;
     let send = null;
@@ -2536,15 +2511,15 @@ async function runCalibrationTransfer(targetIp, basePathForOcaSearch) {
         }
         try {
             await sendTelnetCommands(targetIp, 23, filterData.lpfForLFE);
-        } catch (telnetError) {
-            console.error(`Telnet setup failed: ${telnetError.message}`);
+        } catch (telnetError) { 
+            console.error(`Telnet setup failed: ${telnetError.message}`); 
             console.warn("Continuing transfer, but preset or LFE settings might be incorrect.");
         }
         await delay(1000);
         client = await _connectToAVR(targetIp, AVR_CONTROL_PORT, TRANSFER_CONFIG.timeouts.connect, 'transfer');
         send = createCommandSender(client);
         console.log("Getting current AVR information and status...");
-        const { activeChannels, dataType, coefWaitTime, avrStatus, rawChSetup } = await getAvrInfoAndStatusForTransfer(client);
+        const {activeChannels, dataType, coefWaitTime, avrStatus, rawChSetup} = await getAvrInfoAndStatusForTransfer(client);
         console.log(` AVR reported data type: ${dataType || 'Unknown'}`);
         console.log(` AVR reported active channels: ${activeChannels.join(', ')}`);
         console.log("Comparing calibration file (.oca) amp assignment/channel map with what AVR is reporting...");
@@ -2556,8 +2531,8 @@ async function runCalibrationTransfer(targetIp, basePathForOcaSearch) {
         const normalizedAvrChannelIds = new Set(activeChannels.map(id => mapChannelIdForSetDat(id)));
         const missingOnAvr = [];
         normalizedOcaChannelIds.forEach(ocaId => {
-            if (!normalizedAvrChannelIds.has(ocaId)) {
-                const originalOcaName = ocaChannelNames.find(name => mapChannelIdForSetDat(name) === ocaId);
+            if (!normalizedAvrChannelIds.has(ocaId)) { 
+                const originalOcaName = ocaChannelNames.find(name => mapChannelIdForSetDat(name) === ocaId); 
                 missingOnAvr.push(originalOcaName || ocaId);
             }
         });
@@ -2570,10 +2545,10 @@ async function runCalibrationTransfer(targetIp, basePathForOcaSearch) {
             throw new Error("Configuration mismatch: Channels missing on AVR requires manual correction.");
         }
         const missingInOca = [];
-        normalizedAvrChannelIds.forEach(avrId => {
-            if (!normalizedOcaChannelIds.has(avrId)) {
-                const originalAvrName = activeChannels.find(name => mapChannelIdForSetDat(name) === avrId);
-                missingInOca.push(originalAvrName || avrId);
+        normalizedAvrChannelIds.forEach(avrId => { 
+            if (!normalizedOcaChannelIds.has(avrId)) { 
+                const originalAvrName = activeChannels.find(name => mapChannelIdForSetDat(name) === avrId); 
+                missingInOca.push(originalAvrName || avrId); 
             }
         });
         if (missingInOca.length > 0) {
@@ -2602,10 +2577,12 @@ async function runCalibrationTransfer(targetIp, basePathForOcaSearch) {
             console.warn(`   Proceeding using the AVR's *current* amplifier assignment reported during SET_SETDAT.`);
         }
         const hasGriffinLiteDSP = filterData.hasGriffinLiteDSP || false;
-        const floorChannelIds = new Set(['FL', 'C', 'FR', 'SLA', 'SRA', 'SBL', 'SBR', 'FWL', 'FWR']);
+        const floorChannelIds = new Set(['FL', 'C', 'FR', 'SLA', 'SRA', 'SBL', 'SBR']);
+         const frontWideChannelIds = new Set(['FWL', 'FWR']); 
         const subChannelIds = new Set(['SW1', 'SW2', 'SW3', 'SW4']);
         const floorChannels = [];
         const otherChannels = [];
+        const frontWideChannels = [];
         const subChannels = [];
         for (const originalChannelId of activeChannels) {
             const mappedChannelId = mapChannelIdForSetDat(originalChannelId.toUpperCase());
@@ -2614,6 +2591,7 @@ async function runCalibrationTransfer(targetIp, basePathForOcaSearch) {
                 const channelInfo = { id: originalChannelId, mappedId: mappedChannelId, byte: channelByte };
                 if (floorChannelIds.has(channelInfo.mappedId)) floorChannels.push(channelInfo);
                 else if (subChannelIds.has(channelInfo.mappedId)) subChannels.push(channelInfo);
+                else if (frontWideChannelIds.has(channelInfo.mappedId)) frontWideChannels.push(channelInfo);
                 else otherChannels.push(channelInfo);
             } catch (byteError) {
                 console.warn(`      WARN: Could not get channel byte for ${originalChannelId}. Skipping channel. Error: ${byteError.message}`);
@@ -2622,8 +2600,9 @@ async function runCalibrationTransfer(targetIp, basePathForOcaSearch) {
         const sortByByte = (a, b) => a.byte - b.byte;
         floorChannels.sort(sortByByte);
         otherChannels.sort(sortByByte);
+        frontWideChannels.sort(sortByByte);
         subChannels.sort(sortByByte);
-        const channelsToSendSorted = [...floorChannels, ...otherChannels, ...subChannels];
+        const channelsToSendSorted = [...floorChannels, ...otherChannels, ...frontWideChannels, ...subChannels];
         audEnteredGlobal = false;
         try {
             const enterAudyHex = '5400130000454e5445525f4155445900000077';
@@ -2634,24 +2613,53 @@ async function runCalibrationTransfer(targetIp, basePathForOcaSearch) {
             throw new Error(`Failed to enter calibration mode. Reason: ${e.message}`);
         }
         await sendSetDatCommand(send, avrStatus, rawChSetup, filterData, channelsToSendSorted, multEqType, hasGriffinLiteDSP);
-        if (dataType?.toLowerCase().startsWith('fixed')) {
+        /*if (dataType?.toLowerCase().startsWith('fixed')) {
             try {
                 await delay(coefWaitTime.Init);
                 const initCoefsHex = '5400130000494e49545f434f4546530000006a';
-                await send(initCoefsHex, 'INIT_COEFS', { timeout: 10000, expectAck: true, addChecksum: false });
+                await send(initCoefsHex, 'INIT_COEFS', {timeout: 10000, expectAck: true, addChecksum: false});
                 await delay(coefWaitTime.Init);
-            } catch (e) {
-                console.error(`!!! FAILED sending INIT_COEFS: ${e.message}`);
+            } catch (e) { 
+                console.error(`!!! FAILED sending INIT_COEFS: ${e.message}`); 
                 throw new Error("Failed to initialize coefficients (INIT_COEFS).");
             }
+        }*/
+        if (dataType?.toLowerCase().startsWith('fixed')) {
+            const initCoefsHex = '5400130000494e49545f434f4546530000006a';
+            let initCoefsAcknowledged = false;
+            let sequenceAttempts = 0;
+            const maxSequenceAttempts = 2;
+            const avrSuggestedInitWait = (coefWaitTime && typeof coefWaitTime.Init === 'number' && coefWaitTime.Init > 0) ? coefWaitTime.Init : 3000;
+            const secondCallOverallTimeout = avrSuggestedInitWait + 7000;
+            while (!initCoefsAcknowledged && sequenceAttempts < maxSequenceAttempts) {
+                sequenceAttempts++;
+                try {
+                    try {
+                        await send(initCoefsHex, `INIT_COEFS_CALL1_ATTEMPT_${sequenceAttempts}`, {timeout: 3000, expectAck: false, addChecksum: false});
+                    } catch (firstSendError) {
+                        if (firstSendError.message && !firstSendError.message.toLowerCase().includes('timed out')) console.warn(`   (Debug) Warning during INIT_COEFS (1st call) attempt #${sequenceAttempts}: ${firstSendError.message}`);
+                    }
+                    await delay(2000);
+                    await send(initCoefsHex, `INIT_COEFS_CALL2_ATTEMPT_${sequenceAttempts}`, {timeout: secondCallOverallTimeout, expectAck: true, addChecksum: false});
+                    initCoefsAcknowledged = true;
+                    await delay(avrSuggestedInitWait);
+                } catch (errorDuringSequenceAttempt) {
+                    if (sequenceAttempts >= maxSequenceAttempts) {
+                        throw new Error(`Failed to initialize receiver coefficients (INIT_COEFS) after ${maxSequenceAttempts} attempts. Last error: ${errorDuringSequenceAttempt.message}`);
+                    }
+                    const retryFullSequenceDelay = 3000 + (sequenceAttempts * 2000);
+                    await delay(retryFullSequenceDelay);
+                }
+            }
+            if (!initCoefsAcknowledged) throw new Error(`Failed to initialize receiver coefficients (INIT_COEFS) after exhausting all ${maxSequenceAttempts} attempts.`);
         }
-        if (channelsToSendSorted.length === 0 && activeChannels.length > 0) {
-            console.error("Error: No channels available for sending after byte sorting phase. Check warnings above.");
+        if (channelsToSendSorted.length === 0 && activeChannels.length > 0) { 
+            console.error("Error: No channels available for sending after byte sorting phase. Check warnings above."); 
             throw new Error("Failed to determine send order for any active channels.");
-        } else if (channelsToSendSorted.length === 0) {
+        } else if (channelsToSendSorted.length === 0) { 
             console.warn("No active channels to send coefficient data for.");
         } else {
-            let converterFuncToBuffer;
+            let converterFuncToBuffer; 
             if (dataType?.toLowerCase() === 'float') {
                 converterFuncToBuffer = floatToBufferLE;
                 // console.log(`\nUsing floatToBufferLE for coefficient conversion.`);
@@ -2693,8 +2701,8 @@ async function runCalibrationTransfer(targetIp, basePathForOcaSearch) {
                             tc, coeffsToSend, curveName, originalChannelId,
                             mappedChannelId,
                             multEqType, hasGriffinLiteDSP,
-                            converterFuncToBuffer,
-                            send
+                            converterFuncToBuffer, 
+                            send 
                         );
                     } catch (error) {
                         console.error(`   !!! FAILED sending filters for ${originalChannelId} - Target Curve ${curveName}.`);
@@ -2718,8 +2726,8 @@ async function runCalibrationTransfer(targetIp, basePathForOcaSearch) {
         console.error("   Error:", err.message);
         if (audEnteredGlobal && client && send && !client.destroyed) {
             console.warn("\nAttempting to exit calibration mode due to error...");
-            try {
-                await send('5400130000455849545f4155444d440000006b', 'EXIT_AUDMD_ON_ERROR', { expectAck: true, addChecksum: false, timeout: 3000 });
+            try { 
+                await send('5400130000455849545f4155444d440000006b', 'EXIT_AUDMD_ON_ERROR', { expectAck: true, addChecksum: false, timeout: 3000 }); 
                 console.warn("   Calibration mode exited successfully after error.");
             } catch (exitErr) {
                 console.error(`   !!! FAILED to exit calibration mode during error cleanup: ${exitErr.message}`);
@@ -2738,7 +2746,7 @@ async function runCalibrationTransfer(targetIp, basePathForOcaSearch) {
         if (client && !client.destroyed) {
             console.log("\nClosing AVR connection...");
             try {
-                client.end(() => { });
+                client.end(() => {});
                 await delay(500);
                 if (client && !client.destroyed) {
                     console.warn("   Connection did not close gracefully, forcing destroy.");
@@ -2752,8 +2760,7 @@ async function runCalibrationTransfer(targetIp, basePathForOcaSearch) {
                 }
             }
         }
-    }
-}
+    }}
 async function sendCoeffsForAllSampleRates(tc, coeffs, curveName, originalChannelId, mappedChannelId, multEqType, hasGriffinLiteDSP, converterFuncToBuffer, sendFunction) {
     if (!coeffs || !Array.isArray(coeffs) || coeffs.length === 0) {
         console.warn(`      Skipping send for ${originalChannelId}/${curveName}: zero or invalid coefficients provided.`);
@@ -2762,7 +2769,7 @@ async function sendCoeffsForAllSampleRates(tc, coeffs, curveName, originalChanne
     let channelConfig, channelByte;
     try {
         channelConfig = buildPacketConfig(coeffs.length);
-        if (!channelConfig || typeof channelConfig.lastSequenceNumField === 'undefined') {
+        if (!channelConfig || typeof channelConfig.lastSequenceNumField === 'undefined') { 
             throw new Error(`buildPacketConfig returned invalid object.`);
         }
         channelByte = getChannelTypeByte(mappedChannelId, multEqType, hasGriffinLiteDSP);
@@ -2770,15 +2777,15 @@ async function sendCoeffsForAllSampleRates(tc, coeffs, curveName, originalChanne
         console.error(`      Error configuring packets for ${originalChannelId} (${curveName}): ${err.message}.`);
         throw err;
     }
-    let coeffBuffers;
+    let coeffBuffers; 
     try {
-        coeffBuffers = coeffs.map(converterFuncToBuffer);
+        coeffBuffers = coeffs.map(converterFuncToBuffer); 
     } catch (conversionError) {
         console.error(`      Error converting coefficients to buffers for ${originalChannelId} (${curveName}): ${conversionError.message}.`);
         throw conversionError;
     }
     for (const sr of TRANSFER_CONFIG.sampleRates) {
-        let packets;
+        let packets; 
         try {
             packets = generatePacketsForTransfer(coeffBuffers, channelConfig, tc, sr, channelByte);
         } catch (packetGenError) {
@@ -2787,12 +2794,12 @@ async function sendCoeffsForAllSampleRates(tc, coeffs, curveName, originalChanne
         }
         if (!packets || packets.length === 0) {
             console.warn(`         WARN: No packets generated for SR ${sr} (${originalChannelId}/${curveName}). Skipping SR.`);
-            continue;
+            continue; 
         }
         for (let i = 0; i < packets.length; i++) {
-            const packetBufferToSend = packets[i].bufferData;
+            const packetBufferToSend = packets[i].bufferData; 
             if (!Buffer.isBuffer(packetBufferToSend)) {
-                console.error(`!!! CRITICAL: Packet ${i + 1} for ${originalChannelId}/${curveName}/SR${sr} is not a Buffer.`);
+                console.error(`!!! CRITICAL: Packet ${i+1} for ${originalChannelId}/${curveName}/SR${sr} is not a Buffer.`);
                 throw new Error("Packet generation failed to produce a Buffer.");
             }
             const packetLabel = `Coef Pkt ${i + 1}/${packets.length} (${originalChannelId} ${curveName} SR${sr})`;
@@ -2806,8 +2813,7 @@ async function sendCoeffsForAllSampleRates(tc, coeffs, curveName, originalChanne
                 console.error(`!!! FAILED sending ${packetLabel}: ${err.message}`);
                 throw err;
             }
-        }
+        } 
         await delay(20);
-    }
-}
+    }}
 initializeApp();
