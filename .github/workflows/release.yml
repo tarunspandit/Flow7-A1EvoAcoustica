@@ -35,7 +35,8 @@ jobs:
         id: get_version_info
         run: |
           echo "Event type: ${{ github.event_name }}"
-          current_version=$(jq -r .version package.json || echo "")          if [ -z "$current_version" ]; then
+          current_version=$(jq -r .version package.json || echo "")
+          if [ -z "$current_version" ]; then
             echo "::error file=package.json::Could not extract current version from package.json."
             echo "should_release=false" >> $GITHUB_OUTPUT
             exit 1
