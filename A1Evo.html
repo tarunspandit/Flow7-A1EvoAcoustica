@@ -1509,7 +1509,7 @@ async function checkREW() {
         const major = parseInt(versionMatch[1], 10);
         const minor = parseInt(versionMatch[2], 10);
         const beta = parseInt(versionMatch[3], 10);
-        const versionOK = major > 5 || (major === 5 && minor > 40) || (major === 5 && minor === 40 && beta >= 82);
+        const versionOK = major > 5 || (major === 5 && minor > 40) || (major === 5 && minor === 40 && beta >= 84);
         if (!versionOK) {
           console.error(`Installed REW version (${versionString}) is outdated and incompatible with A1 Evo! Please install the latest REW Beta from https://www.avnirvana.com/threads/rew-api-beta-releases.12981/.`);
           throwError();
@@ -2269,7 +2269,7 @@ async function alignFronts() {
   const inversionConfigs = [{subInverted: false}, {subInverted: true}];
   let apfQValues = [0, 0.5773502692, 0.7071067812, 1.0, 1.414213562];
   if (!noAllpass) apfQValues = [0];
-  const subAmplitudeScalingFactor = 2;
+  const subAmplitudeScalingFactor = 1; //Maybe should be 1
   console.info(`Using subwoofer amplitude scaling factor: ${subAmplitudeScalingFactor.toFixed(1)} (${(20 * Math.log10(subAmplitudeScalingFactor)).toFixed(3)} dB)`);
   console.info("Brute force searching optimal configuration, please be patient...");
   const optimizationStartFreq = 20;
@@ -2623,7 +2623,7 @@ async function optimizeSpeakers(sp1, sp2 = null) {
     if (currentFreq_bestWorstDipVal !== Infinity) {
       if (isPair) {
         console.info(
-          `Freq: ${freq}Hz - Worst dip ${(-currentFreq_bestWorstDipVal).toFixed(2)}dB (Allpass Q1: ${currentFreq_bestWorstDipQ1?.toFixed(4)}, Allpass Q2: ${currentFreq_bestWorstDipQ2?.toFixed(4)}) | Average dip ${(-currentFreq_bestSumDipVal / 2).toFixed(2)}dB (Allpass Q1: ${currentFreq_bestSumDipQ1?.toFixed(4)}, Allpass Q2: ${currentFreq_bestSumDipQ2?.toFixed(4)})`
+          `Freq: ${freq}Hz - Worst dip ${(-currentFreq_bestWorstDipVal).toFixed(2)}dB (Left allpass Q: ${currentFreq_bestWorstDipQ1?.toFixed(4)}, Right allpass Q: ${currentFreq_bestWorstDipQ2?.toFixed(4)}) | Average dip ${(-currentFreq_bestSumDipVal / 2).toFixed(2)}dB (Left allpass Q: ${currentFreq_bestSumDipQ1?.toFixed(4)}, Right allpass Q: ${currentFreq_bestSumDipQ2?.toFixed(4)})`
         );
       } else {
           console.info(`Freq: ${freq}Hz - Dip ${(-currentFreq_bestWorstDipVal).toFixed(2)}dB (Q: ${currentFreq_bestWorstDipQ1?.toFixed(4)})`
@@ -2633,15 +2633,15 @@ async function optimizeSpeakers(sp1, sp2 = null) {
       console.info(`Freq: ${freq}Hz - No valid dip calculations found or all attempts failed.`);
     }
   }
-  console.info(`Overall best crossover by worst off: ${bestWorstXO}Hz, Allpass Q1: ${bestWorstq1?.toFixed(4)}${isPair && bestWorstq2 !== null ? `, Allpass Q2: ${bestWorstq2.toFixed(4)}` : ''}, dips below target: ${-bestWorstDip.toFixed(4)}`);
-  console.info(`Overall best crossover by average: ${bestSumXO}Hz, Allpass Q1: ${bestSumAP1?.toFixed(4)}${isPair && bestSumAP2 !== null ? `, Allpass Q2: ${bestSumAP2.toFixed(4)}` : ''}, dips below target: ${isPair ? (-bestSumDip/2).toFixed(4) : (-bestSumDip).toFixed(4)}`);
+  console.info(`Overall best crossover by worst off: ${bestWorstXO}Hz, Left allpass Q: ${bestWorstq1?.toFixed(4)}${isPair && bestWorstq2 !== null ? `, Right allpass Q: ${bestWorstq2.toFixed(4)}` : ''}, dips below target: ${-bestWorstDip.toFixed(4)}`);
+  console.info(`Overall best crossover by average: ${bestSumXO}Hz, Left allpass Q: ${bestSumAP1?.toFixed(4)}${isPair && bestSumAP2 !== null ? `, Right allpass Q: ${bestSumAP2.toFixed(4)}` : ''}, dips below target: ${isPair ? (-bestSumDip/2).toFixed(4) : (-bestSumDip).toFixed(4)}`);
   customCrossover[sp1] = bestWorstXO; 
   allpassQ[sp1] = bestWorstq1;
-  console.infoBold(`  >> Assigned Crossover: ${customCrossover[sp1]}Hz, Allpass Q1: ${allpassQ[sp1]?.toFixed(4)} to ${commandId[sp1]}`);
+  console.infoBold(`  >> Assigned Crossover: ${customCrossover[sp1]}Hz, Left allpass Q: ${allpassQ[sp1]?.toFixed(4)} to ${commandId[sp1]}`);
   if (isPair) {
     customCrossover[sp2] = bestWorstXO;
     allpassQ[sp2] = bestWorstq2;
-    console.infoBold(`  >> Assigned Crossover: ${customCrossover[sp2]}Hz, Allpass Q2: ${allpassQ[sp2]?.toFixed(4)} to ${commandId[sp2]}`);
+    console.infoBold(`  >> Assigned Crossover: ${customCrossover[sp2]}Hz, Right allpass Q: ${allpassQ[sp2]?.toFixed(4)} to ${commandId[sp2]}`);
   }}
 async function refResults(){
   console.info(`Generating magnitude and phase correction filters for normal listening mode [Flat]...`);
