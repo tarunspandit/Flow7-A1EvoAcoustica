@@ -2198,9 +2198,9 @@ async function calculateLoudnessPhons(measurementNumber) {
   }
   return loudnessPhons;}
 async function sortBass() {
-  let exactDelta, avrDelta, lowPass;
+  let exactDelta, avrDelta;
   if (subRolloffEnabled && subRolloffFreq !== null) {
-    lowPass = lpf4lfeValue;
+    lpf4LFE = lpf4lfeValue;
     console.warn(`User override :: Subwoofer highpass filter => ${subRolloffFreq}Hz : ${subRolloffSlope}, lowpass filter ${lpf4lfeValue}Hz : LR-4`);
     await postSafe(`http://localhost:4735/eq/house-curve`, targetCurvePath, 'House curve set');
     await postSafe(`${baseUrl}/${nSpeakers + 1}/room-curve-settings`, {addRoomCurve: false}, 'Update processed');
@@ -2511,7 +2511,7 @@ async function sortBass() {
     highPassType = optimalResult.highPassType;
     highPassOrder = optimalResult.highPassSlope;
     exactDelta = optimalResult.volumeAdjustment;
-    lowPass = lowPassFreq;
+    lpf4LFE = lowPassFreq;
     hiPass = highPassFreq;
     console.info('Subwoofer analysis complete!');
     console.log(`Subwoofer highpass filter => ${highPassFreq}Hz : ${highPassType} ${highPassOrder}dB/oct, lowpass filter ${lowPassFreq}Hz : LR-4`);
@@ -2550,9 +2550,6 @@ async function sortBass() {
   await alignFronts();
   await postNext('Minimum phase version', nSpeakers + 1, {'include cal': true, 'append lf tail': false, 'append hf tail': false, 'frequency warping': false, 'replicate data': true});
   await new Promise((resolve) => setTimeout(resolve, speedDelay));
-  //await generateRoll(lowPass, nSpeakers + 2, true);
-  //if (subRolloffSlope === "None") console.info(`Generating subwoofer filters to track target curve starting from ${hiPass}Hz`)
-  //const extendLow = lowPass * Math.pow(2, 0.5);
   await postNext('Arithmetic', [nSpeakers + 2, nSpeakers + 3], {function: "A / B", maxGain: subBoost, lowerLimit: hiPass, upperLimit: 500});
   await new Promise(resolve => setTimeout(resolve, speedDelay));
   await postNext('Smooth', nSpeakers + 4, {smoothing: "None"});
@@ -2576,8 +2573,8 @@ async function sortBass() {
   await postNext("Trim IR to windows", nSpeakers + 4);
   await postDelete(nSpeakers + 4);
   await fetchREW(nSpeakers + 4, 'PUT', {title: 'Subwoofer final'});
-  await generateRoll(lowPass, nSpeakers + 4, true);
-  const lfeName = `LFE (${lowPass}Hz LPF)`;
+  await generateRoll(lpf4LFE, nSpeakers + 4, true);
+  const lfeName = `LFE (${lpf4LFE}Hz LPF)`;
   await fetchREW(nSpeakers + 5, 'PUT', {title: lfeName});
   const response = await fetchSafe('impulse-response?windowed=true&normalised=true&samplerate=' + (xt32 ? '48000' : '6000'), nSpeakers + 3);
   const bytes = Uint8Array.from(atob(response.data), c => c.charCodeAt(0));
@@ -2967,66 +2964,26 @@ async function optimizeSpeakers(sp1, sp2 = null) {
         }
       }
     }
-
-
-
-
-
-
-    /*if (currentFreq_bestWorstDipVal !== Infinity) {
+    if (currentFreq_bestWorstDipVal !== Infinity) {
       if (isPair) {
-        console.info(
-          `Freq: ${freq}Hz - Worst dip ${(-currentFreq_bestWorstDipVal).toFixed(2)}dB (Left allpass Q: ${currentFreq_bestWorstDipQ1?.toFixed(4)}, Right allpass Q: ${currentFreq_bestWorstDipQ2?.toFixed(4)}) | Average dip ${(-currentFreq_bestSumDipVal / 2).toFixed(2)}dB (Left allpass Q: ${currentFreq_bestSumDipQ1?.toFixed(4)}, Right allpass Q: ${currentFreq_bestSumDipQ2?.toFixed(4)})`
-        );
-      } else {
-          console.info(`Freq: ${freq}Hz - Dip ${(-currentFreq_bestWorstDipVal).toFixed(2)}dB (Q: ${currentFreq_bestWorstDipQ1?.toFixed(4)})`
+        if (!skipAllpassLogging) {
+          console.info(
+            `Freq: ${freq}Hz - Worst dip ${(-currentFreq_bestWorstDipVal).toFixed(2)}dB (Left allpass Q: ${currentFreq_bestWorstDipQ1?.toFixed(4)}, Right allpass Q: ${currentFreq_bestWorstDipQ2?.toFixed(4)}) | Average dip ${(-currentFreq_bestSumDipVal / 2).toFixed(2)}dB (Left allpass Q: ${currentFreq_bestSumDipQ1?.toFixed(4)}, Right allpass Q: ${currentFreq_bestSumDipQ2?.toFixed(4)})`
           );
+        } else {
+          console.info(`Freq: ${freq}Hz - Worst dip ${(-currentFreq_bestWorstDipVal).toFixed(2)}dB | Average dip ${(-currentFreq_bestSumDipVal / 2).toFixed(2)}dB`);
+        }
+      } else {
+        if (!skipAllpassLogging) {
+          console.info(`Freq: ${freq}Hz - Dip ${(-currentFreq_bestWorstDipVal).toFixed(2)}dB (Q: ${currentFreq_bestWorstDipQ1?.toFixed(4)})`);
+        } else {
+          console.info(`Freq: ${freq}Hz - Dip ${(-currentFreq_bestWorstDipVal).toFixed(2)}dB`);
+        }
       }
     } else {
       console.info(`Freq: ${freq}Hz - No valid dip calculations found or all attempts failed.`);
     }
   }
-  console.info(`Overall best crossover by worst off: ${bestWorstXO}Hz, Left allpass Q: ${bestWorstq1?.toFixed(4)}${isPair && bestWorstq2 !== null ? `, Right allpass Q: ${bestWorstq2.toFixed(4)}` : ''}, dips below target: ${-bestWorstDip.toFixed(4)}`);
-  console.info(`Overall best crossover by average: ${bestSumXO}Hz, Left allpass Q: ${bestSumAP1?.toFixed(4)}${isPair && bestSumAP2 !== null ? `, Right allpass Q: ${bestSumAP2.toFixed(4)}` : ''}, dips below target: ${isPair ? (-bestSumDip/2).toFixed(4) : (-bestSumDip).toFixed(4)}`);
-  customCrossover[sp1] = bestWorstXO; 
-  allpassQ[sp1] = bestWorstq1;
-  console.infoBold(`  >> Assigned Crossover: ${customCrossover[sp1]}Hz, Left allpass Q: ${allpassQ[sp1]?.toFixed(4)} to ${commandId[sp1]}`);
-  if (isPair) {
-    customCrossover[sp2] = bestWorstXO;
-    allpassQ[sp2] = bestWorstq2;
-    console.infoBold(`  >> Assigned Crossover: ${customCrossover[sp2]}Hz, Right allpass Q: ${allpassQ[sp2]?.toFixed(4)} to ${commandId[sp2]}`);
-  }
-*/
-
-
-  if (currentFreq_bestWorstDipVal !== Infinity) {
-    if (isPair) {
-      if (!skipAllpassLogging) {
-        console.info(
-          `Freq: ${freq}Hz - Worst dip ${(-currentFreq_bestWorstDipVal).toFixed(2)}dB (Left allpass Q: ${currentFreq_bestWorstDipQ1?.toFixed(4)}, Right allpass Q: ${currentFreq_bestWorstDipQ2?.toFixed(4)}) | Average dip ${(-currentFreq_bestSumDipVal / 2).toFixed(2)}dB (Left allpass Q: ${currentFreq_bestSumDipQ1?.toFixed(4)}, Right allpass Q: ${currentFreq_bestSumDipQ2?.toFixed(4)})`
-        );
-      } else {
-        console.info(
-          `Freq: ${freq}Hz - Worst dip ${(-currentFreq_bestWorstDipVal).toFixed(2)}dB | Average dip ${(-currentFreq_bestSumDipVal / 2).toFixed(2)}dB`
-        );
-      }
-    } else {
-      if (!skipAllpassLogging) {
-        console.info(
-          `Freq: ${freq}Hz - Dip ${(-currentFreq_bestWorstDipVal).toFixed(2)}dB (Q: ${currentFreq_bestWorstDipQ1?.toFixed(4)})`
-        );
-      } else {
-        console.info(
-          `Freq: ${freq}Hz - Dip ${(-currentFreq_bestWorstDipVal).toFixed(2)}dB`
-        );
-      }
-    }
-  } else {
-    console.info(`Freq: ${freq}Hz - No valid dip calculations found or all attempts failed.`);
-  }
-}
-
-  // Final crossover assignment and summary logging
   if (!skipAllpassLogging) {
     console.info(`Overall best crossover by worst off: ${bestWorstXO}Hz, Left allpass Q: ${bestWorstq1?.toFixed(4)}${isPair && bestWorstq2 !== null ? `, Right allpass Q: ${bestWorstq2.toFixed(4)}` : ''}, dips below target: ${-bestWorstDip.toFixed(4)}`);
     console.info(`Overall best crossover by average: ${bestSumXO}Hz, Left allpass Q: ${bestSumAP1?.toFixed(4)}${isPair && bestSumAP2 !== null ? `, Right allpass Q: ${bestSumAP2.toFixed(4)}` : ''}, dips below target: ${isPair ? (-bestSumDip/2).toFixed(4) : (-bestSumDip).toFixed(4)}`);
@@ -3034,40 +2991,14 @@ async function optimizeSpeakers(sp1, sp2 = null) {
     console.info(`Overall best crossover by worst off: ${bestWorstXO}Hz, dip: ${-bestWorstDip.toFixed(4)}`);
     console.info(`Overall best crossover by average: ${bestSumXO}Hz, dip: ${isPair ? (-bestSumDip/2).toFixed(4) : (-bestSumDip).toFixed(4)}`);
   }
-
   customCrossover[sp1] = bestWorstXO;
   allpassQ[sp1] = bestWorstq1;
   console.infoBold(`  >> Assigned Crossover: ${customCrossover[sp1]}Hz${!skipAllpassLogging ? `, Left allpass Q: ${allpassQ[sp1]?.toFixed(4)}` : ''} to ${commandId[sp1]}`);
-
   if (isPair) {
     customCrossover[sp2] = bestWorstXO;
     allpassQ[sp2] = bestWorstq2;
     console.infoBold(`  >> Assigned Crossover: ${customCrossover[sp2]}Hz${!skipAllpassLogging ? `, Right allpass Q: ${allpassQ[sp2]?.toFixed(4)}` : ''} to ${commandId[sp2]}`);
-  }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-}
+  }}
 async function refResults(){
   console.info(`Generating magnitude and phase correction filters for normal listening mode [Flat]...`);
   for (let i = nSpeakers + 1; i <= nSpeakers + nSubs; i++) {if (customInvert[i]) {customFilter[i] = customFilter[0].map((value) => -value);} else {customFilter[i] = customFilter[0];}}
