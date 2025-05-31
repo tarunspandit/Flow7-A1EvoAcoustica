@@ -2198,9 +2198,10 @@ async function calculateLoudnessPhons(measurementNumber) {
   }
   return loudnessPhons;}
 async function sortBass() {
-  let exactDelta, avrDelta;
+  let exactDelta, avrDelta, hiPass;
   if (subRolloffEnabled && subRolloffFreq !== null) {
     lpf4LFE = lpf4lfeValue;
+    hiPass = subRolloffFreq;
     console.warn(`User override :: Subwoofer highpass filter => ${subRolloffFreq}Hz : ${subRolloffSlope}, lowpass filter ${lpf4lfeValue}Hz : LR-4`);
     await postSafe(`http://localhost:4735/eq/house-curve`, targetCurvePath, 'House curve set');
     await postSafe(`${baseUrl}/${nSpeakers + 1}/room-curve-settings`, {addRoomCurve: false}, 'Update processed');
