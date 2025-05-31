@@ -2212,6 +2212,7 @@ async function sortBass() {
     exactDelta = targetLevel - parseFloat(swLevel, 10);
   } else {
     let lowPassFreq = null, highPassFreq = null, highPassType = null, highPassOrder = null, volumeOffset = null;
+    const lpCutoffCandidates_main_thread = freqIndex;
     const workerScriptContent = `
           function freqToIndex(freq, startFreq, ppo, totalPoints) {
               if (freq < startFreq) return 0;
@@ -2317,8 +2318,10 @@ async function sortBass() {
           let fixedAnalysisTargetMagnitude;
           let commonPpo;
           let fixedOverallAnalysisStartFreq;
+          let lpCutoffCandidates;
+
+
           const hpCutoffCandidates = Array.from({ length: 60 - 16 + 1 }, (_, i) => 16 + i); // 16Hz to 60Hz, 1Hz step
-          const lpCutoffCandidates = [80, 90, 100, 110, 120, 150, 180, 200, 250]; // Specific LP cutoff candidates
           const hpFilterConfigs = [
               { type: 'LR', slope: 24 }, { type: 'LR', slope: 36 }, { type: 'LR', slope: 48 },
               { type: 'BW', slope: 12 }, { type: 'BW', slope: 18 }, { type: 'BW', slope: 24 },
@@ -2332,6 +2335,7 @@ async function sortBass() {
                   fixedAnalysisTargetMagnitude = event.data.fixedAnalysisTargetMagnitude;
                   commonPpo = event.data.commonPpo;
                   fixedOverallAnalysisStartFreq = event.data.fixedOverallAnalysisStartFreq;
+                  lpCutoffCandidates = event.data.lpCutoffCandidates;
               } else if (event.data.type === 'task') {
                   const { errorEvalStartFreq, errorEvalEndFreq, taskId } = event.data;
                   let minMaeErrorForCurrentRange = Infinity;
@@ -2501,7 +2505,8 @@ async function sortBass() {
               subRawStartFreq: subRawStartFreq,
               targetRawStartFreq: targetRawStartFreq,
               subRawMagnitudeLength: subMagnitudeDecoded.length,
-              targetRawMagnitudeLength: targetMagnitudeDecoded.length
+              targetRawMagnitudeLength: targetMagnitudeDecoded.length,
+              lpCutoffCandidates: lpCutoffCandidates_main_thread
           });
           sendTaskToWorker(i);
       }
