@@ -2322,11 +2322,10 @@ async function sortBass() {
           let lpCutoffCandidates;
 
 
-          const hpCutoffCandidates = Array.from({ length: 60 - 16 + 1 }, (_, i) => 16 + i); // 16Hz to 60Hz, 1Hz step
+          const hpCutoffCandidates = Array.from({ length: 60 - 12 + 1 }, (_, i) => 12 + i); // 16Hz to 60Hz, 1Hz step
           const hpFilterConfigs = [
               { type: 'LR', slope: 24 }, { type: 'LR', slope: 36 }, { type: 'LR', slope: 48 },
-              { type: 'BW', slope: 12 }, { type: 'BW', slope: 18 }, { type: 'BW', slope: 24 },
-              { type: 'BW', slope: 36 }, { type: 'BW', slope: 48 }
+              { type: 'BW', slope: 24 }, { type: 'BW', slope: 36 }, { type: 'BW', slope: 48 }
           ];
           const lpFilterConfig = { type: 'LR', slope: 24 }; // Fixed LP filter config (LR-4)
           self.onmessage = function(event) {
@@ -2436,6 +2435,10 @@ async function sortBass() {
       const taskQueue = [];
       let overallMinMaeError = Infinity;
       let overallOptimalResult = null;
+
+      let totalTasks;
+      let tasksCompleted = 0; 
+
       const errorEvalStartFreqCandidates = Array.from({ length: 25 - 12 + 1 }, (_, i) => 12 + i);
       const errorEvalEndFreqCandidates = Array.from({ length: Math.floor((800 - 250) / 5) + 1 }, (_, i) => 250 + i * 5);
       for (const startFreq of errorEvalStartFreqCandidates) {
@@ -2444,7 +2447,8 @@ async function sortBass() {
               taskQueue.push({ startFreq, endFreq });
           }
       }
-      console.info(`Generated ${taskQueue.length} tasks distributed over ${numWorkers} CPU cores.`);
+      totalTasks = taskQueue.length;
+      console.info(`Generated ${totalTasks} tasks distributed over ${numWorkers} CPU cores.`);
       const sendTaskToWorker = (workerIndex) => {
           if (taskQueue.length > 0) {
               const task = taskQueue.shift();
@@ -2472,6 +2476,8 @@ async function sortBass() {
           if (event.data.type === 'log' || event.data.type === 'warning') {
               if (event.data.type === 'warning') console.warn(`[Worker ${workerIndex}] ${event.data.message}`);
           } else if (event.data.type === 'taskResult') {
+              tasksCompleted++;
+              console.infoUpdate(`Progress: ${tasksCompleted} of ${totalTasks} tasks completed.`);
               const taskResult = event.data.result;
               if (taskResult.minError < overallMinMaeError) {
                   overallMinMaeError = taskResult.minError;
