@@ -2322,7 +2322,7 @@ async function sortBass() {
           let lpCutoffCandidates;
 
 
-          const hpCutoffCandidates = Array.from({ length: 60 - 12 + 1 }, (_, i) => 12 + i); // 16Hz to 60Hz, 1Hz step
+          const hpCutoffCandidates = Array.from({ length: 60 - 10 + 1 }, (_, i) => 10 + i); // 16Hz to 60Hz, 1Hz step
           const hpFilterConfigs = [
               { type: 'LR', slope: 24 }, { type: 'LR', slope: 36 }, { type: 'LR', slope: 48 },
               { type: 'BW', slope: 24 }, { type: 'BW', slope: 36 }, { type: 'BW', slope: 48 }
