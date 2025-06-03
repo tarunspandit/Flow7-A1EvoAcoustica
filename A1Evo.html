@@ -752,7 +752,7 @@ and noninfringement. Use at your own risk.
   <label class="checkbox-label">
   <input type="checkbox" id="enableRolloff">Force custom high-pass and low-pass filters for subwoofer(s)
   </label>
-  <div class="tooltip">Advanced option for use with special/DIY subwooofer(s) that can extend very low and have custom roll-off profiles</div>
+  <div class="tooltip">Advanced option for subwooofer(s) with special roll-off profiles (HP: High pass, LP: Low pass, BE: Bessel, BU: Butterworth, L-R: Linkwitz Riley, each order: 6dB/octave slope)</div>
   <div class="rolloff-controls">
   <label class="rolloff-text" for="rolloffFreqInput">HP freq:</label>
   <input type="number" id="rolloffFreqInput" placeholder="25" min="10" max="60" disabled>
@@ -785,12 +785,10 @@ and noninfringement. Use at your own risk.
 const evoVersion = "6.4";
 const baseUrl = 'http://localhost:4735/measurements', speedDelay = 255, maxDistanceLimit = 7.35;
 let micCalFile = new Array(16384).fill(0), audioCtx = null;
-let jsonName = 'receiver_config.avr';
-let jsonType = 'avr';
-let jsonContent = null;
+let jsonName = 'receiver_config.avr', jsonType = 'avr', jsonContent = null;
 let folderPath, localAppPath = null, ocafileName, sOs = null, isCirrusLogic, isGriffin, freqIndex = [], distFL = null, modelDelayLimit, minDistAccuracy, mSec = [], hardNegative, hardPositive, xt32 = true, xt = false;
 let nSpeakers = null, nSubs = null, subMinTrim = -12, subMaxTrim = 12, lpf4LFE, filterCompensation, targetCurvePath, targetLevel, responseTarget, dataTarget, tcName, rewMaxLimit, isPreProcessed = false, isAutomated;
-let customLevel = [], commandId = [], customDistance = [], customInvert = [], customCrossover = [], customFilter = [], deqFilter = [], subTrim = [], customMinFreq = [], customMaxFreq = [], customMinFreqFR = [], customMaxFreqFR = [], customMinFreqC = [], customMaxFreqC = [],customMargin = [], subAllPassQ = null, allpassQ = [];
+let customLevel = [], commandId = [], customDistance = [], customInvert = [], customCrossover = [], customFilter = [], deqFilter = [], subTrim = [], customMinFreq = [], customMaxFreq = [], customMinFreqFR = [], customMaxFreqFR = [], customMinFreqC = [], customMaxFreqC = [],customMargin = [], subAllPassQ = null, allpassQ = [], hiPass, hType;
 const defaultSlope = "L-R4";
 const dbValues = [-12, -15, -18, -20, -25];
 var subBoost = 0, bassFill = 0, levelLowVol = 2, enableInversion = false, enableWeakBass = false, noAllpass = false, minFreq = 40, maxFreq = 250, minFreqFR = 40, maxFreqFR = 250, minFreqC = 40, maxFreqC = 250,  subRolloffEnabled = false, subRolloffFreq = null, subRolloffSlope = defaultSlope, lpf4lfeValue = null;
@@ -1411,9 +1409,7 @@ async function main(){
   const logContainer = document.getElementById('logContainer');
   const measurementChoice = document.getElementById('measurementChoice');
   logContainer.style.display = 'block';
-
   document.body.style.overflow = 'hidden';
-
   measurementChoice.classList.add('transitioned');
   const startTime = performance.now();
   console.infoBold(`** Customizations start **`);
@@ -1440,7 +1436,7 @@ async function main(){
     if (customizations[key] !== defaults[key]) {console.warn(message);} else {console.log(message);}
   }
   if (subRolloffEnabled) {
-    console.warn(`Acoustica will not calculate subwoofer roll off frequencies and force '${subRolloffSlope}' high-pass filter @ ${subRolloffFreq}Hz & 'L-R4 (hardware fixed) @ ${lpf4lfeValue}Hz`);
+    console.warn(`Acoustica will not auto-calculate subwoofer roll off frequencies and types but instead force custom user settings: '${subRolloffSlope}' high-pass filter @ ${subRolloffFreq}Hz & 'L-R4 (hardware fixed) @ ${lpf4lfeValue}Hz`);
   }
   console.infoBold(`** Customizations end **`);
   await checkREW();
@@ -1463,6 +1459,9 @@ async function main(){
   await sortBass();
   await refResults();
   await lowVolumeFilters();
+  await postSafe(`${baseUrl}/${nSpeakers + 2}/target-settings`, {shape: 'Driver', lowPassCrossoverType: "L-R4", highPassCrossoverType: hType, lowPassCutoffHz: lpf4LFE, highPassCutoffHz: hiPass}, 'Update processed');
+  await postNext('Generate target measurement', nSpeakers + 2);
+  await putSafe(`${baseUrl}/${3 * (nSpeakers + 2)}`, {title: 'Subwoofer internals'},'Update processed');
   const endTime = performance.now();
   const totalTime = (endTime - startTime) / 1000;
   const formatTime = (seconds) => {
@@ -2198,11 +2197,11 @@ async function calculateLoudnessPhons(measurementNumber) {
   }
   return loudnessPhons;}
 async function sortBass() {
-  let exactDelta, avrDelta, hiPass;
+  let exactDelta, avrDelta;
   if (subRolloffEnabled && subRolloffFreq !== null) {
     lpf4LFE = lpf4lfeValue;
     hiPass = subRolloffFreq;
-    console.warn(`User override :: Subwoofer highpass filter => ${subRolloffFreq}Hz : ${subRolloffSlope}, lowpass filter ${lpf4lfeValue}Hz : LR-4`);
+    console.warn(`User override :: Subwoofer highpass filter => ${subRolloffFreq}Hz : ${subRolloffSlope}, lowpass filter ${lpf4lfeValue}Hz : L-R4`);
     await postSafe(`http://localhost:4735/eq/house-curve`, targetCurvePath, 'House curve set');
     await postSafe(`${baseUrl}/${nSpeakers + 1}/room-curve-settings`, {addRoomCurve: false}, 'Update processed');
     await postSafe(`${baseUrl}/${nSpeakers + 1}/target-settings`, {shape: 'Driver', lowPassCrossoverType: "L-R4", highPassCrossoverType: subRolloffSlope, lowPassCutoffHz: lpf4lfeValue, highPassCutoffHz: subRolloffFreq}, 'Update processed');
@@ -2211,190 +2210,162 @@ async function sortBass() {
     await postNext('Calculate target level', nSpeakers + 1);
     const swLevel = await fetchSafe(`${nSpeakers + 1}/target-level`);
     exactDelta = targetLevel - parseFloat(swLevel, 10);
+    hType = subRolloffSlope;
   } else {
     let lowPassFreq = null, highPassFreq = null, highPassType = null, highPassOrder = null, volumeOffset = null;
     const lpCutoffCandidates_main_thread = freqIndex.filter(freq => freq >= 80);
     const workerScriptContent = `
-          function freqToIndex(freq, startFreq, ppo, totalPoints) {
-              if (freq < startFreq) return 0;
-              const index = ppo * Math.log2(freq / startFreq);
-              return Math.min(Math.round(index), totalPoints - 1);
+      function freqToIndex(freq, startFreq, ppo, totalPoints) {
+        if (freq < startFreq) return 0;
+        const index = ppo * Math.log2(freq / startFreq);
+        return Math.min(Math.round(index), totalPoints - 1);
+      }
+      function getLRFilterGain(freq, cutoff, lrOrderNumerical, type) {
+        if (freq <= 0 || cutoff <= 0 || lrOrderNumerical <= 0) return -200;
+        const ratio = freq / cutoff;
+        const ratioPow = Math.pow(ratio, lrOrderNumerical);
+        let magnitude;
+        if (type === 'LP') {
+            magnitude = 1 / (1 + ratioPow);
+        } else if (type === 'HP') {
+            magnitude = ratioPow / (1 + ratioPow);
+        } else {
+            throw new Error("Filter type must be 'HP' or 'LP'");
+        }
+        if (magnitude <= 1e-10) return -200;
+        return 20 * Math.log10(magnitude);
+      }
+      function getButterworthFilterGain(freq, cutoff, order, type) {
+        if (freq <= 0 || cutoff <= 0 || order <= 0) return -200;
+        const ratio = freq / cutoff;
+        let magnitude;
+        if (type === 'LP') {
+            magnitude = 1 / Math.sqrt(1 + Math.pow(ratio, 2 * order));
+        } else if (type === 'HP') {
+            magnitude = Math.pow(ratio, order) / Math.sqrt(1 + Math.pow(ratio, 2 * order));
+        } else {
+            throw new Error("Filter type must be 'HP' or 'LP'");
+        }
+        if (magnitude <= 1e-10) return -200;
+        return 20 * Math.log10(magnitude);
+      }
+      function applyFilters(dataMagnitude, frequencies, hpFreq, hpConfig, lpFreq, lpConfig) {
+        const filteredMagnitude = new Array(dataMagnitude.length);
+        for (let i = 0; i < dataMagnitude.length; i++) {
+          const freq = frequencies[i];
+          const originalMag = dataMagnitude[i];
+          if (isNaN(originalMag)) {
+            filteredMagnitude[i] = NaN;
+            continue;
           }
-          function getLRFilterGain(freq, cutoff, lrOrderNumerical, type) {
-              if (freq <= 0 || cutoff <= 0 || lrOrderNumerical <= 0) return -200;
-              const ratio = freq / cutoff;
-              const ratioPow = Math.pow(ratio, lrOrderNumerical);
-              let magnitude;
-              if (type === 'LP') {
-                  magnitude = 1 / (1 + ratioPow);
-              } else if (type === 'HP') {
-                  magnitude = ratioPow / (1 + ratioPow);
-              } else {
-                  throw new Error("Filter type must be 'HP' or 'LP'");
-              }
-              if (magnitude <= 1e-10) return -200;
-              return 20 * Math.log10(magnitude);
+          let hpGain, lpGain;
+          if (hpConfig.type === 'L-R') {
+              const hpEffectiveOrder = hpConfig.slope / 6;
+              hpGain = getLRFilterGain(freq, hpFreq, hpEffectiveOrder, 'HP');
+          } else if (hpConfig.type === 'BU') {
+              const hpOrder = hpConfig.slope / 6;
+              hpGain = getButterworthFilterGain(freq, hpFreq, hpOrder, 'HP');
           }
-          function getButterworthFilterGain(freq, cutoff, order, type) {
-              if (freq <= 0 || cutoff <= 0 || order <= 0) return -200;
-              const ratio = freq / cutoff;
-              let magnitude;
-              if (type === 'LP') {
-                  magnitude = 1 / Math.sqrt(1 + Math.pow(ratio, 2 * order));
-              } else if (type === 'HP') {
-                  magnitude = Math.pow(ratio, order) / Math.sqrt(1 + Math.pow(ratio, 2 * order));
-              } else {
-                  throw new Error("Filter type must be 'HP' or 'LP'");
-              }
-              if (magnitude <= 1e-10) return -200;
-              return 20 * Math.log10(magnitude);
+          if (lpConfig.type === 'L-R') {
+              const lpEffectiveOrder = lpConfig.slope / 6;
+              lpGain = getLRFilterGain(freq, lpFreq, lpEffectiveOrder, 'LP');
+          } else if (lpConfig.type === 'BU') {
+              const lpOrder = lpConfig.slope / 6;
+              lpGain = getButterworthFilterGain(freq, lpFreq, lpOrder, 'LP');
           }
-          function applyFilters(dataMagnitude, frequencies, hpFreq, hpConfig, lpFreq, lpConfig) {
-              const filteredMagnitude = new Array(dataMagnitude.length);
-              for (let i = 0; i < dataMagnitude.length; i++) {
-                  const freq = frequencies[i];
-                  const originalMag = dataMagnitude[i];
-                  if (isNaN(originalMag)) {
-                      filteredMagnitude[i] = NaN;
-                      continue;
-                  }
-                  let hpGain, lpGain;
-                  if (hpConfig.type === 'LR') {
-                      const hpEffectiveOrder = hpConfig.slope / 6;
-                      hpGain = getLRFilterGain(freq, hpFreq, hpEffectiveOrder, 'HP');
-                  } else if (hpConfig.type === 'BW') {
-                      const hpOrder = hpConfig.slope / 6;
-                      hpGain = getButterworthFilterGain(freq, hpFreq, hpOrder, 'HP');
-                  } else {
-                      // For safety, though the main thread should only send supported types
-                      hpGain = 0; // No gain change if filter type is unknown
-                      self.postMessage({ type: 'warning', message: 'Worker: Unsupported HP filter type encountered: ' + hpConfig.type });
-                  }
-                  if (lpConfig.type === 'LR') {
-                      const lpEffectiveOrder = lpConfig.slope / 6;
-                      lpGain = getLRFilterGain(freq, lpFreq, lpEffectiveOrder, 'LP');
-                  } else if (lpConfig.type === 'BW') {
-                      const lpOrder = lpConfig.slope / 6;
-                      lpGain = getButterworthFilterGain(freq, lpFreq, lpOrder, 'LP');
-                  } else {
-                      // For safety
-                      lpGain = 0; // No gain change if filter type is unknown
-                      self.postMessage({ type: 'warning', message: 'Worker: Unsupported LP filter type encountered: ' + lpConfig.type });
-                  }
-
-                  filteredMagnitude[i] = originalMag + hpGain + lpGain;
-              }
-              return filteredMagnitude;
+          filteredMagnitude[i] = originalMag + hpGain + lpGain;
+        }
+        return filteredMagnitude;
+      }
+      function calculateVolumeAdjustmentAndError(responseToAdjust, targetMagnitude, frequencies, errorRangeStartFreq, errorRangeEndFreq, ppo, analysisStartFreq) {
+        let sumDiff = 0, count = 0, sumAbsoluteDiff = 0;
+        const totalPoints = frequencies.length;
+        const startIndex = freqToIndex(errorRangeStartFreq, analysisStartFreq, ppo, totalPoints);
+        const endIndex = freqToIndex(errorRangeEndFreq, analysisStartFreq, ppo, totalPoints);
+        if (startIndex >= totalPoints || endIndex < 0 || startIndex > endIndex) {return {volumeAdjustment: 0, maeError: Infinity};}
+        for (let i = startIndex; i <= endIndex; i++) {
+          if (isFinite(responseToAdjust[i]) && isFinite(targetMagnitude[i])) {
+            sumDiff += (targetMagnitude[i] - responseToAdjust[i]);
+            count++;
           }
-          function calculateVolumeAdjustmentAndError(responseToAdjust, targetMagnitude, frequencies, errorRangeStartFreq, errorRangeEndFreq, ppo, analysisStartFreq) {
-              let sumDiff = 0, count = 0, sumAbsoluteDiff = 0;
-              const totalPoints = frequencies.length;
-              const startIndex = freqToIndex(errorRangeStartFreq, analysisStartFreq, ppo, totalPoints);
-              const endIndex = freqToIndex(errorRangeEndFreq, analysisStartFreq, ppo, totalPoints);
-              if (startIndex >= totalPoints || endIndex < 0 || startIndex > endIndex) {
-                  return { volumeAdjustment: 0, maeError: Infinity };
-              }
-              for (let i = startIndex; i <= endIndex; i++) {
-                  if (isFinite(responseToAdjust[i]) && isFinite(targetMagnitude[i])) {
-                      sumDiff += (targetMagnitude[i] - responseToAdjust[i]);
-                      count++;
-                  }
-              }
-              if (count === 0) {
-                  return { volumeAdjustment: 0, maeError: Infinity };
-              }
-              const volumeAdjustment = sumDiff / count;
-              for (let i = startIndex; i <= endIndex; i++) {
-                  if (isFinite(responseToAdjust[i]) && isFinite(targetMagnitude[i])) {
-                      const alignedResponse = responseToAdjust[i] + volumeAdjustment;
-                      const diff = alignedResponse - targetMagnitude[i];
-                      sumAbsoluteDiff += Math.abs(diff);
-                  }
-              }
-              const maeError = sumAbsoluteDiff / count;
-              return { volumeAdjustment, maeError };
+        }
+        if (count === 0) {return {volumeAdjustment: 0, maeError: Infinity};}
+        const volumeAdjustment = sumDiff / count;
+        for (let i = startIndex; i <= endIndex; i++) {
+          if (isFinite(responseToAdjust[i]) && isFinite(targetMagnitude[i])) {
+            const alignedResponse = responseToAdjust[i] + volumeAdjustment;
+            const diff = alignedResponse - targetMagnitude[i];
+            sumAbsoluteDiff += Math.abs(diff);
           }
-          let fixedAnalysisFrequencies;
-          let fixedAnalysisSubMagnitude;
-          let fixedAnalysisTargetMagnitude;
-          let commonPpo;
-          let fixedOverallAnalysisStartFreq;
-          let lpCutoffCandidates;
-
-
-          const hpCutoffCandidates = Array.from({ length: 60 - 10 + 1 }, (_, i) => 10 + i); // 16Hz to 60Hz, 1Hz step
-          const hpFilterConfigs = [
-              { type: 'LR', slope: 24 }, { type: 'LR', slope: 36 }, { type: 'LR', slope: 48 },
-              { type: 'BW', slope: 24 }, { type: 'BW', slope: 36 }, { type: 'BW', slope: 48 }
-          ];
-          const lpFilterConfig = { type: 'LR', slope: 24 }; // Fixed LP filter config (LR-4)
-          self.onmessage = function(event) {
-              if (event.data.type === 'init') {
-                  fixedAnalysisFrequencies = event.data.fixedAnalysisFrequencies;
-                  fixedAnalysisSubMagnitude = event.data.fixedAnalysisSubMagnitude;
-                  fixedAnalysisTargetMagnitude = event.data.fixedAnalysisTargetMagnitude;
-                  commonPpo = event.data.commonPpo;
-                  fixedOverallAnalysisStartFreq = event.data.fixedOverallAnalysisStartFreq;
-                  lpCutoffCandidates = event.data.lpCutoffCandidates;
-              } else if (event.data.type === 'task') {
-                  const { errorEvalStartFreq, errorEvalEndFreq, taskId } = event.data;
-                  let minMaeErrorForCurrentRange = Infinity;
-                  let optimalHpFreqForCurrentRange = null;
-                  let optimalHpConfigForCurrentRange = null;
-                  let optimalLpFreqForCurrentRange = null;
-                  let optimalLpConfigForCurrentRange = null;
-                  let optimalVolumeAdjustmentForCurrentRange = null;
-                  for (const hpFreq of hpCutoffCandidates) {
-                      for (const lpFreq of lpCutoffCandidates) {
-                          if (lpFreq <= hpFreq) continue; // Ensure LP cutoff is strictly higher than HP cutoff
-                          for (const hpConfig of hpFilterConfigs) {
-                              const currentLpConfig = lpFilterConfig; // Use the fixed LP filter configuration
-                              const currentFilteredTarget = applyFilters(
-                                  fixedAnalysisTargetMagnitude,
-                                  fixedAnalysisFrequencies,
-                                  hpFreq, hpConfig, lpFreq, currentLpConfig
-                              );
-                              const { volumeAdjustment, maeError } = calculateVolumeAdjustmentAndError(
-                                  fixedAnalysisSubMagnitude,
-                                  currentFilteredTarget,
-                                  fixedAnalysisFrequencies,
-                                  errorEvalStartFreq,
-                                  errorEvalEndFreq,
-                                  commonPpo,
-                                  fixedOverallAnalysisStartFreq
-                              );
-
-                              if (maeError < minMaeErrorForCurrentRange) {
-                                  minMaeErrorForCurrentRange = maeError;
-                                  optimalHpFreqForCurrentRange = hpFreq;
-                                  optimalHpConfigForCurrentRange = hpConfig;
-                                  optimalLpFreqForCurrentRange = lpFreq;
-                                  optimalLpConfigForCurrentRange = currentLpConfig; // Store the fixed LP config
-                                  optimalVolumeAdjustmentForCurrentRange = volumeAdjustment;
-                              }
-                          }
-                      }
-                  }
-                  self.postMessage({
-                      type: 'taskResult',
-                      taskId: taskId,
-                      result: {
-                          highPassFreq: optimalHpFreqForCurrentRange,
-                          highPassSlope: optimalHpConfigForCurrentRange ? optimalHpConfigForCurrentRange.slope : null,
-                          highPassType: optimalHpConfigForCurrentRange ? optimalHpConfigForCurrentRange.type : null,
-                          lowPassFreq: optimalLpFreqForCurrentRange,
-                          lowPassSlope: optimalLpConfigForCurrentRange ? optimalLpConfigForCurrentRange.slope : null,
-                          lowPassType: optimalLpConfigForCurrentRange ? optimalLpConfigForCurrentRange.type : null,
-                          volumeAdjustment: optimalVolumeAdjustmentForCurrentRange,
-                          minError: minMaeErrorForCurrentRange,
-                          optimalErrorRangeStart: errorEvalStartFreq,
-                          optimalErrorRangeEnd: errorEvalEndFreq,
-                      }
-                  });
-              }
-          };
-      `;
-    const workerBlob = new Blob([workerScriptContent], { type: 'application/javascript' });
+        }
+        const maeError = sumAbsoluteDiff / count;
+        return {volumeAdjustment, maeError};
+      }
+      let fixedAnalysisFrequencies, fixedAnalysisSubMagnitude, fixedAnalysisTargetMagnitude, commonPpo, fixedOverallAnalysisStartFreq, lpCutoffCandidates;
+      const hpCutoffCandidates = Array.from({ length: 60 - 11 + 1 }, (_, i) => 11 + i); // 11Hz to 60Hz, 1Hz step
+      const hpFilterConfigs = [
+        {type: 'L-R', slope: 24}, {type: 'L-R', slope: 36}, {type: 'L-R', slope: 48},
+        {type: 'BU', slope: 18},
+        {type: 'BU', slope: 24}, {type: 'BU', slope: 36}, {type: 'BU', slope: 48}
+      ];
+      const lpFilterConfig = {type: 'L-R', slope: 24}; // Fixed LP filter config (L-R4)
+      self.onmessage = function(event) {
+        if (event.data.type === 'init') {
+          fixedAnalysisFrequencies = event.data.fixedAnalysisFrequencies;
+          fixedAnalysisSubMagnitude = event.data.fixedAnalysisSubMagnitude;
+          fixedAnalysisTargetMagnitude = event.data.fixedAnalysisTargetMagnitude;
+          commonPpo = event.data.commonPpo;
+          fixedOverallAnalysisStartFreq = event.data.fixedOverallAnalysisStartFreq;
+          lpCutoffCandidates = event.data.lpCutoffCandidates;
+        } else if (event.data.type === 'task') {
+          const { errorEvalStartFreq, errorEvalEndFreq, taskId } = event.data;
+          let minMaeErrorForCurrentRange = Infinity, optimalHpFreqForCurrentRange = null, optimalHpConfigForCurrentRange = null, optimalLpFreqForCurrentRange = null, optimalLpConfigForCurrentRange = null, optimalVolumeAdjustmentForCurrentRange = null;
+          for (const hpFreq of hpCutoffCandidates) {
+            for (const lpFreq of lpCutoffCandidates) {
+                if (lpFreq <= hpFreq) continue;
+                for (const hpConfig of hpFilterConfigs) {
+                    const currentLpConfig = lpFilterConfig;
+                    const currentFilteredTarget = applyFilters(fixedAnalysisTargetMagnitude, fixedAnalysisFrequencies, hpFreq, hpConfig, lpFreq, currentLpConfig);
+                    const {volumeAdjustment, maeError} = calculateVolumeAdjustmentAndError(
+                      fixedAnalysisSubMagnitude,
+                      currentFilteredTarget,
+                      fixedAnalysisFrequencies,
+                      errorEvalStartFreq,
+                      errorEvalEndFreq,
+                      commonPpo,
+                      fixedOverallAnalysisStartFreq
+                    );
+                    if (maeError < minMaeErrorForCurrentRange) {
+                      minMaeErrorForCurrentRange = maeError;
+                      optimalHpFreqForCurrentRange = hpFreq;
+                      optimalHpConfigForCurrentRange = hpConfig;
+                      optimalLpFreqForCurrentRange = lpFreq;
+                      optimalLpConfigForCurrentRange = currentLpConfig;
+                      optimalVolumeAdjustmentForCurrentRange = volumeAdjustment;
+                    }
+                }
+            }
+          }
+          self.postMessage({
+            type: 'taskResult',
+            taskId: taskId,
+            result: {
+              highPassFreq: optimalHpFreqForCurrentRange,
+              highPassSlope: optimalHpConfigForCurrentRange ? optimalHpConfigForCurrentRange.slope : null,
+              highPassType: optimalHpConfigForCurrentRange ? optimalHpConfigForCurrentRange.type : null,
+              lowPassFreq: optimalLpFreqForCurrentRange,
+              lowPassSlope: optimalLpConfigForCurrentRange ? optimalLpConfigForCurrentRange.slope : null,
+              lowPassType: optimalLpConfigForCurrentRange ? optimalLpConfigForCurrentRange.type : null,
+              volumeAdjustment: optimalVolumeAdjustmentForCurrentRange,
+              minError: minMaeErrorForCurrentRange,
+              optimalErrorRangeStart: errorEvalStartFreq,
+              optimalErrorRangeEnd: errorEvalEndFreq,
+            }
+          });
+        }
+      };
+    `;
+    const workerBlob = new Blob([workerScriptContent], {type: 'application/javascript'});
     const workerUrl = URL.createObjectURL(workerBlob);
     const responseSubRaw = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', nSpeakers + 1);
     const responseTargetRaw = await fetchSafe('frequency-response?smoothing=1%2F48&ppo=96', nSpeakers + 2);
@@ -2426,7 +2397,6 @@ async function sortBass() {
       }
     }
     console.info("Starting analysing subwoofer internals using parallel processing - speed will vary by CPU core count...");
-    //console.log(`Overall Fixed Analysis Range: ${fixedOverallAnalysisStartFreq.toFixed(2)}Hz to ${fixedOverallAnalysisEndFreq.toFixed(2)}Hz (${fixedOverallAnalysisTotalPoints} points)`);
     const optimalResult = await new Promise((resolve, reject) => {
       const numWorkers = navigator.hardwareConcurrency || 4;
       const workers = [];
@@ -2435,12 +2405,10 @@ async function sortBass() {
       const taskQueue = [];
       let overallMinMaeError = Infinity;
       let overallOptimalResult = null;
-
       let totalTasks;
       let tasksCompleted = 0; 
-
-      const errorEvalStartFreqCandidates = Array.from({ length: 25 - 12 + 1 }, (_, i) => 12 + i);
-      const errorEvalEndFreqCandidates = Array.from({ length: Math.floor((800 - 250) / 5) + 1 }, (_, i) => 250 + i * 5);
+      const errorEvalStartFreqCandidates = Array.from({ length: 25 - 8 + 1 }, (_, i) => 8 + i);
+      const errorEvalEndFreqCandidates = Array.from({ length: Math.floor((800 - 250) / 10) + 1 }, (_, i) => 250 + i * 10);
       for (const startFreq of errorEvalStartFreqCandidates) {
           for (const endFreq of errorEvalEndFreqCandidates) {
               if (endFreq <= startFreq) continue;
@@ -2501,7 +2469,6 @@ async function sortBass() {
                   reject(new Error(`Worker ${i} failed. Subwoofer alignment aborted.`));
               }
           };
-
           worker.postMessage({
               type: 'init',
               fixedAnalysisFrequencies: fixedAnalysisFrequencies,
@@ -2525,9 +2492,11 @@ async function sortBass() {
     exactDelta = optimalResult.volumeAdjustment;
     lpf4LFE = lowPassFreq;
     hiPass = highPassFreq;
+    hType = highPassType + String(Math.round(highPassOrder / 6));
     console.info('Subwoofer analysis complete!');
-    console.log(`Subwoofer highpass filter => ${highPassFreq}Hz : ${highPassType} ${highPassOrder}dB/oct, lowpass filter ${lowPassFreq}Hz : LR-4`);
-  }
+    console.log(`Subwoofer highpass filter => ${highPassFreq}Hz : ${highPassType} ${highPassOrder}dB/oct, lowpass filter ${lowPassFreq}Hz : L-R4`);
+  };
+  //console.log(`${hiPass}Hz, ${hType}, ${lpf4LFE}Hz`);
   console.log(`Applied volume adjustment: ${exactDelta.toFixed(5)}dB`);
   avrDelta = Math.round(exactDelta * 2) / 2;
   console.log(`AVR subwoofer volume setting: ${avrDelta.toFixed(1)}dB`);
