@@ -3193,20 +3193,21 @@ async function processSubConfig(subIndices) {
   let delay, newIndex, finalScore;
   subIndices.forEach(index => {customInvert[index] = false, mSec[index] = 0;});
   let indexA = subIndices[0];
-  await postSafe("http://localhost:4735/alignment-tool/mode", "Impulse", "Mode set");
-  await postSafe("http://localhost:4735/alignment-tool/remove-time-delay", false, "Value set");
-  await postAlign('Reset all');
+
   for (let i = 1; i < subIndices.length; i++) {
     const indexB = subIndices[i];
-    await postSafe("http://localhost:4735/alignment-tool/index-a", indexA, "selected as measurement A");
-    await postSafe("http://localhost:4735/alignment-tool/index-b", indexB, "selected as measurement B");
-    await postSafe("http://localhost:4735/alignment-tool/max-negative-delay", -maxPositiveDelay, "Maximum negative delay set");
-    await postSafe("http://localhost:4735/alignment-tool/max-positive-delay", -maxNegativeDelay, "Maximum positive delay set");
     const {bestDelay, bestInvert, finalScore} = await optimizeSubs(indexA, indexB, maxNegativeDelay, maxPositiveDelay, 250);
-    await postSafe(`http://localhost:4735/alignment-tool/delay-b`, bestDelay, `Value set`);
-    await postSafe(`http://localhost:4735/alignment-tool/invert-b`, bestInvert, `Value set`);
-    const alignedSum = await postAlign('Aligned sum');
+    const msDelay = bestDelay / 1000;
+    await postNext('Offset t=0', indexB, {offset: msDelay, unit: "seconds"});
+    if (bestInvert) await postSafe(`${baseUrl}/${indexB}/command`, {command: "Invert"}, "Invert completed");
+
+    const alignedSum = await postNext("Vector sum", [indexA, indexB]);
+    await new Promise((resolve) => setTimeout(resolve, speedDelay));
     newIndex = parseInt(Object.keys(alignedSum.results)[0], 10);
+    
+    await postNext('Offset t=0', indexB, {offset: -msDelay, unit: "seconds"});
+    if (bestInvert) await postSafe(`${baseUrl}/${indexB}/command`, {command: "Invert"}, "Invert completed");
+
     mSec[indexB] = -bestDelay;
     customInvert[indexB] = bestInvert;
     const offsetsUsed = subIndices.slice(0, i + 1).map(j => mSec[j]);
