@@ -1305,7 +1305,7 @@ async function initializeApp() {
             console.error("[Server] Unhandled error during request processing:", serverError); try { if (!res.headersSent) { res.writeHead(500, { 'Content-Type': 'text/plain' }); res.end('Internal Server Error'); } } catch (responseError) { console.error("[Server] Error sending 500 response:", responseError); }
         }
     });
-    mainServer.listen('127.0.0.1', () => {
+    mainServer.listen(SERVER_PORT,'127.0.0.1', () => {
         mainMenu();
     });
     mainServer.on('error', (err) => { 
