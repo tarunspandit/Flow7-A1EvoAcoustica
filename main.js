@@ -1100,7 +1100,7 @@ function loadConfigFromFile() {
         cachedAvrConfig = null;
         return false; 
     }}
-async function mainMenu() {
+async function mainMenu(port) {
     const configExistsAndValid = loadConfigFromFile() && cachedAvrConfig && cachedAvrConfig.ipAddress;
     const configOptionName = cachedAvrConfig
         ? "1. Re-configure AVR (Re-discover & Overwrite Current Config)"
@@ -1161,7 +1161,7 @@ async function mainMenu() {
                     break;
                 }
                 // console.log('\n--- Starting Optimization ---');
-                const optimizationUrl = `http://localhost:${SERVER_PORT}/`; 
+                const optimizationUrl = `http://localhost:${port}/`;
                 try {
                     console.log(`Opening ${optimizationUrl} in your default web browser...`);
                     await open(optimizationUrl, { wait: false }); 
@@ -1305,11 +1305,13 @@ async function initializeApp() {
             console.error("[Server] Unhandled error during request processing:", serverError); try { if (!res.headersSent) { res.writeHead(500, { 'Content-Type': 'text/plain' }); res.end('Internal Server Error'); } } catch (responseError) { console.error("[Server] Error sending 500 response:", responseError); }
         }
     });
-    mainServer.listen(SERVER_PORT,'127.0.0.1', () => {
-        mainMenu();
+    mainServer.listen(parseInt(process.argv[2]) || SERVER_PORT,
+        '127.0.0.1', () => {
+        mainMenu(self.address().port);
     });
+    let usedPort = mainServer.address().port;
     mainServer.on('error', (err) => { 
-        if (err.code === 'EADDRINUSE') { console.error(`\nFATAL ERROR: Port ${SERVER_PORT} is already in use.`); console.error("Please close the application using the port (maybe another instance of this app?)"); console.error("Or, if necessary, change SERVER_PORT constant at the top of the script."); } else { console.error('\nFATAL SERVER ERROR:', err); } process.exit(1);
+        if (err.code === 'EADDRINUSE') { console.error(`\nFATAL ERROR: Port ${usedPort} is already in use.`); console.error("Please close the application using the port (maybe another instance of this app?)"); console.error("Or, if necessary, change SERVER_PORT constant at the top of the script."); } else { console.error('\nFATAL SERVER ERROR:', err); } process.exit(1);
     });}
 function isProcessRunning(processName) {
     return new Promise((resolve) => {
