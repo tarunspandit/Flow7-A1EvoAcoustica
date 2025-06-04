@@ -1307,7 +1307,13 @@ async function initializeApp() {
     });
     mainServer.listen(parseInt(process.argv[2]) || SERVER_PORT,
         '127.0.0.1', () => {
-        mainMenu(self.address().port);
+            const address = mainServer.address();
+            if (address) {
+                console.log(`Server listening on ${address.address}:${address.port}`);
+                mainMenu(address.port);
+            } else {
+                console.error("Server address information is not available.");
+            }
     });
     let usedPort = mainServer.address().port;
     mainServer.on('error', (err) => { 
