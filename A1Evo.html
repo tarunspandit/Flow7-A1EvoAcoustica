@@ -2305,7 +2305,7 @@ async function sortBass() {
       const hpCutoffCandidates = Array.from({ length: 60 - 11 + 1 }, (_, i) => 11 + i); // 11Hz to 60Hz, 1Hz step
       const hpFilterConfigs = [
         {type: 'L-R', slope: 24}, {type: 'L-R', slope: 36}, {type: 'L-R', slope: 48},
-        {type: 'BU', slope: 18},
+        {type: 'BU', slope: 12},
         {type: 'BU', slope: 24}, {type: 'BU', slope: 36}, {type: 'BU', slope: 48}
       ];
       const lpFilterConfig = {type: 'L-R', slope: 24}; // Fixed LP filter config (L-R4)
@@ -3118,6 +3118,8 @@ async function multipleSubs(indices) {
   await postNext('Smooth', indices, {smoothing: "Psy"});
   await new Promise(resolve => setTimeout(resolve, speedDelay));
   const subShift = await postNext('Align SPL', indices, {frequencyHz: 70.71067812, spanOctaves: 3.6538562, targetdB: 'average'});
+  await postNext('Smooth', indices, {smoothing: "None"});
+  await new Promise(resolve => setTimeout(resolve, speedDelay));
   let maxBoost = -Infinity, minBoost = Infinity;
   for (const [i, subIndex] of indices.entries()) {
     const delta = parseFloat(subShift.results[subIndex].alignSPLOffsetdB);
@@ -3193,21 +3195,17 @@ async function processSubConfig(subIndices) {
   let delay, newIndex, finalScore;
   subIndices.forEach(index => {customInvert[index] = false, mSec[index] = 0;});
   let indexA = subIndices[0];
-
   for (let i = 1; i < subIndices.length; i++) {
     const indexB = subIndices[i];
     const {bestDelay, bestInvert, finalScore} = await optimizeSubs(indexA, indexB, maxNegativeDelay, maxPositiveDelay, 250);
     const msDelay = bestDelay / 1000;
     await postNext('Offset t=0', indexB, {offset: msDelay, unit: "seconds"});
     if (bestInvert) await postSafe(`${baseUrl}/${indexB}/command`, {command: "Invert"}, "Invert completed");
-
     const alignedSum = await postNext("Vector sum", [indexA, indexB]);
     await new Promise((resolve) => setTimeout(resolve, speedDelay));
     newIndex = parseInt(Object.keys(alignedSum.results)[0], 10);
-    
     await postNext('Offset t=0', indexB, {offset: -msDelay, unit: "seconds"});
     if (bestInvert) await postSafe(`${baseUrl}/${indexB}/command`, {command: "Invert"}, "Invert completed");
-
     mSec[indexB] = -bestDelay;
     customInvert[indexB] = bestInvert;
     const offsetsUsed = subIndices.slice(0, i + 1).map(j => mSec[j]);
