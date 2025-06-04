@@ -782,7 +782,7 @@ and noninfringement. Use at your own risk.
   </div></div>
 </script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/14.0.1/math.min.js"></script><script>
 
-const evoVersion = "6.5";
+const evoVersion = "6.6";
 const baseUrl = 'http://localhost:4735/measurements', speedDelay = 255, maxDistanceLimit = 7.35;
 let micCalFile = new Array(16384).fill(0), audioCtx = null;
 let jsonName = 'receiver_config.avr', jsonType = 'avr', jsonContent = null;
@@ -3197,7 +3197,9 @@ async function processSubConfig(subIndices) {
   let indexA = subIndices[0];
   for (let i = 1; i < subIndices.length; i++) {
     const indexB = subIndices[i];
-    const {bestDelay, bestInvert, finalScore} = await optimizeSubs(indexA, indexB, maxNegativeDelay, maxPositiveDelay, 250);
+    const result = await optimizeSubs(indexA, indexB, maxNegativeDelay, maxPositiveDelay, 250);
+    const {bestDelay, bestInvert} = result;
+    finalScore = result.finalScore;
     const msDelay = bestDelay / 1000;
     await postNext('Offset t=0', indexB, {offset: msDelay, unit: "seconds"});
     if (bestInvert) await postSafe(`${baseUrl}/${indexB}/command`, {command: "Invert"}, "Invert completed");
