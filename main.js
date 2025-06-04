@@ -1314,10 +1314,6 @@ async function initializeApp() {
             } else {
                 console.error("Server address information is not available.");
             }
-    });
-    let usedPort = mainServer.address().port;
-    mainServer.on('error', (err) => { 
-        if (err.code === 'EADDRINUSE') { console.error(`\nFATAL ERROR: Port ${usedPort} is already in use.`); console.error("Please close the application using the port (maybe another instance of this app?)"); console.error("Or, if necessary, change SERVER_PORT constant at the top of the script."); } else { console.error('\nFATAL SERVER ERROR:', err); } process.exit(1);
     });}
 function isProcessRunning(processName) {
     return new Promise((resolve) => {
@@ -2797,4 +2793,7 @@ async function sendCoeffsForAllSampleRates(tc, coeffs, curveName, originalChanne
         } 
         await delay(20);
     }}
-initializeApp();
+initializeApp().catch(err => {
+    console.error("Failed to initialize application:", err);
+    process.exit(1);
+});
