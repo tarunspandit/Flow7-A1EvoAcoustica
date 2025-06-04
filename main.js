@@ -12,7 +12,7 @@ const fsPromises = require('fs').promises;
 const {parseStringPromise} = require('xml2js');
 const readline = require('readline');
 
-const SERVER_PORT = 3000;
+const SERVER_PORT = 0;
 const AVR_CONTROL_PORT = 1256; 
 const MAIN_CONFIG = {timeouts: {discovery: 5000, connection: 3000, command: 10000}}; 
 const rewApiPort = 4735;
