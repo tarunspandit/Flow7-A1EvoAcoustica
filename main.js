@@ -12,7 +12,7 @@ const fsPromises = require('fs').promises;
 const {parseStringPromise} = require('xml2js');
 const readline = require('readline');
 
-const SERVER_PORT = 0;
+const SERVER_PORT = 3000;
 const AVR_CONTROL_PORT = 1256; 
 const MAIN_CONFIG = {timeouts: {discovery: 5000, connection: 3000, command: 10000}}; 
 const rewApiPort = 4735;
@@ -1100,7 +1100,7 @@ function loadConfigFromFile() {
         cachedAvrConfig = null;
         return false; 
     }}
-async function mainMenu(port) {
+async function mainMenu() {
     const configExistsAndValid = loadConfigFromFile() && cachedAvrConfig && cachedAvrConfig.ipAddress;
     const configOptionName = cachedAvrConfig
         ? "1. Re-configure AVR (Re-discover & Overwrite Current Config)"
@@ -1161,7 +1161,7 @@ async function mainMenu(port) {
                     break;
                 }
                 // console.log('\n--- Starting Optimization ---');
-                const optimizationUrl = `http://localhost:${port}/`;
+                const optimizationUrl = `http://localhost:${SERVER_PORT}/`; 
                 try {
                     console.log(`Opening ${optimizationUrl} in your default web browser...`);
                     await open(optimizationUrl, { wait: false }); 
@@ -1305,15 +1305,11 @@ async function initializeApp() {
             console.error("[Server] Unhandled error during request processing:", serverError); try { if (!res.headersSent) { res.writeHead(500, { 'Content-Type': 'text/plain' }); res.end('Internal Server Error'); } } catch (responseError) { console.error("[Server] Error sending 500 response:", responseError); }
         }
     });
-    mainServer.listen(parseInt(process.argv[2]) || SERVER_PORT,
-        '127.0.0.1', () => {
-            const address = mainServer.address();
-            if (address) {
-                console.log(`Server listening on ${address.address}:${address.port}`);
-                mainMenu(address.port);
-            } else {
-                console.error("Server address information is not available.");
-            }
+    mainServer.listen(SERVER_PORT, '127.0.0.1', () => {
+        mainMenu();
+    });
+    mainServer.on('error', (err) => { 
+        if (err.code === 'EADDRINUSE') { console.error(`\nFATAL ERROR: Port ${SERVER_PORT} is already in use.`); console.error("Please close the application using the port (maybe another instance of this app?)"); console.error("Or, if necessary, change SERVER_PORT constant at the top of the script."); } else { console.error('\nFATAL SERVER ERROR:', err); } process.exit(1);
     });}
 function isProcessRunning(processName) {
     return new Promise((resolve) => {
@@ -2793,7 +2789,4 @@ async function sendCoeffsForAllSampleRates(tc, coeffs, curveName, originalChanne
         } 
         await delay(20);
     }}
-initializeApp().catch(err => {
-    console.error("Failed to initialize application:", err);
-    process.exit(1);
-});
+initializeApp();
