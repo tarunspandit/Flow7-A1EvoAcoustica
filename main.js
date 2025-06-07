@@ -1547,7 +1547,7 @@ async function ensureRewReady() {
         }]);
         return proceedError; 
     }
-    const waitTime = 10000; 
+    const waitTime = 15000; 
     console.log(`Waiting ${waitTime / 1000} seconds for REW and its API server to initialize...`);
     await delay(waitTime); 
     const isApiListeningAfterLaunch = await checkRewApi(rewApiPort);
