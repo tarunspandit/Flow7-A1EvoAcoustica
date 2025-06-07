@@ -1293,13 +1293,13 @@ async function initializeApp() {
                 fs.readFile(HTML_FILEPATH, (err, data) => { if (err) { console.error(`[Server] Error reading ${HTML_FILENAME}:`, err); res.writeHead(500, { 'Content-Type': 'text/plain' }); res.end('Internal Server Error: Could not load main HTML file.'); } else { res.writeHead(200, { 'Content-Type': 'text/html' }); res.end(data); } });
             }
             else if (method === 'GET' && pathname === `/${CONFIG_FILENAME}`) { 
-                if (cachedAvrConfig && cachedAvrConfig.ipAddress) { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(cachedAvrConfig)); } else { fs.readFile(CONFIG_FILEPATH, (err, data) => { if (err) { console.warn(`[Server] ${CONFIG_FILENAME} requested but not found or not cached.`); res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: `${CONFIG_FILENAME} not found. Run configuration first.` })); } else { try { const fileConfig = JSON.parse(data.toString()); res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(data); } catch (parseErr) { console.error(`[Server] Error parsing ${CONFIG_FILENAME} from disk:`, parseErr); res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: `Error reading configuration file.` })); } } }); }
+                if (cachedAvrConfig && cachedAvrConfig.ipAddress) { res.writeHead(200, {'Content-Type': 'application/json'}); res.end(JSON.stringify(cachedAvrConfig)); } else { fs.readFile(CONFIG_FILEPATH, (err, data) => { if (err) { console.warn(`[Server] ${CONFIG_FILENAME} requested but not found or not cached.`); res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: `${CONFIG_FILENAME} not found. Run configuration first.` })); } else { try { const fileConfig = JSON.parse(data.toString()); res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(data); } catch (parseErr) { console.error(`[Server] Error parsing ${CONFIG_FILENAME} from disk:`, parseErr); res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: `Error reading configuration file.` })); } } }); }
             }
             else if (method === 'GET' && pathname === '/api/get-app-path') { 
-                res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ appPath: APP_BASE_PATH }));
+                res.writeHead(200, {'Content-Type': 'application/json'}); res.end(JSON.stringify({appPath: APP_BASE_PATH}));
             }
             else { 
-                res.writeHead(404, { 'Content-Type': 'text/plain' }); res.end('Not Found');
+                res.writeHead(404, {'Content-Type': 'text/plain'}); res.end('Not Found');
             }
         } catch(serverError) { 
             console.error("[Server] Unhandled error during request processing:", serverError); try { if (!res.headersSent) { res.writeHead(500, { 'Content-Type': 'text/plain' }); res.end('Internal Server Error'); } } catch (responseError) { console.error("[Server] Error sending 500 response:", responseError); }
@@ -1547,7 +1547,7 @@ async function ensureRewReady() {
         }]);
         return proceedError; 
     }
-    const waitTime = 8000; 
+    const waitTime = 10000; 
     console.log(`Waiting ${waitTime / 1000} seconds for REW and its API server to initialize...`);
     await delay(waitTime); 
     const isApiListeningAfterLaunch = await checkRewApi(rewApiPort);
@@ -1672,12 +1672,10 @@ async function sendTelnetCommands(ip, port = 23, lpf4LFE = 120) {
             isPowerConfirmed = false;
             client.write('ZM?\r');
             powerCheckTimer = setTimeout(() => { 
-                if (!isPowerConfirmed && client && !client.destroyed) { 
-                    //console.log('Telnet: No quick response to ZM?. Assuming OFF. Sending ZMON command...');
+                if (!isPowerConfirmed && client && !client.destroyed) {
                     client.write('ZMON\r'); 
                     powerOnWaitTimer = setTimeout(() => {
                         if (!isPowerConfirmed) {
-                            //console.log(`Power-on wait (${TRANSFER_CONFIG.timeouts.power / 1000}s) finished.`);
                             isPowerConfirmed = true; 
                             proceedToCheckPreset();
                         }
@@ -1730,13 +1728,15 @@ async function sendTelnetCommands(ip, port = 23, lpf4LFE = 120) {
                 commands.push(`SPPR ${selectedPreset}`); 
             }
             commands.push('SSSWM LFE'); 
-            commands.push('SSSWO LFE'); 
+            commands.push('SSSWO LFE');
+            commands.push('SSSWM LFE'); 
+            commands.push('SSSWO LFE');
             const lpfFormatted = lpf4LFE.toString();
+            commands.push(`SSLFL ${lpfFormatted}`); 
             commands.push(`SSLFL ${lpfFormatted}`); 
             let index = 0;
             function sendNext() {
                 if (index >= commands.length) { 
-                    // console.log("Telnet: All commands sent."); 
                     cleanup(); 
                     return;
                 }
@@ -1746,7 +1746,6 @@ async function sendTelnetCommands(ip, port = 23, lpf4LFE = 120) {
                     return;
                 }
                 const cmdToSend = commands[index];
-                // console.log(`Telnet: Sending command: ${cmdToSend}`);
                 client.write(cmdToSend + '\r');
                 index++;
                 commandSequenceTimer = setTimeout(sendNext, 1000); 

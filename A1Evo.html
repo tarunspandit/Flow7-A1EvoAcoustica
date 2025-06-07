@@ -1,5 +1,5 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
-<!--
+
 Copyright (c) 2025 OCA (https://www.youtube.com/@OCAudiophile)
 
 All rights reserved.
@@ -31,7 +31,7 @@ Disclaimer:
 This software is provided "as is", without warranty of any kind, express or implied,
 including but not limited to the warranties of merchantability, fitness for a particular purpose,
 and noninfringement. Use at your own risk.
--->
+
 <title>A1 Evo Acoustica</title>
 <style>
   body {
@@ -2079,8 +2079,9 @@ async function checkPolarity() {
       }
       customInvert[i] = false;
     }
-    await postDelete(total + 3); 
-    await postDelete(total + 2); 
+    await new Promise((resolve) => setTimeout(resolve, speedDelay));
+    await postDelete(total + 3);
+    await postDelete(total + 2);
     await postDelete(total + 1);
   } 
   if (invertedCount > 0 && invertedCount < nSpeakers) {
@@ -2249,7 +2250,7 @@ async function sortBass() {
     let lowPassFreq = null, highPassFreq = null, highPassType = null, highPassOrder = null, volumeOffset = null;
     const lpCutoffCandidates_main_thread = freqIndex.filter(freq => freq >= 80);
     const numWorkers = navigator.hardwareConcurrency || 4;
-    const hpSearchStep = numWorkers >= 8 ? 1 : 2;
+    const hpSearchStep = numWorkers >= 4 ? 1 : 2;
     const workerScriptContent = `
       function freqToIndex(freq, startFreq, ppo, totalPoints) {
         if (freq < startFreq) return 0;
