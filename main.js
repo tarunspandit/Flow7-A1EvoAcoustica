@@ -1726,7 +1726,9 @@ async function sendTelnetCommands(ip, port = 23, lpf4LFE = 120) {
             const commands = [];
             if (selectedPreset) {
                 commands.push(`SPPR ${selectedPreset}`); 
-            }
+            };
+            commands.push('PSSWL OFF');
+            commands.push('PSSWL OFF');
             commands.push('SSSWM LFE'); 
             commands.push('SSSWO LFE');
             commands.push('SSSWM LFE'); 
