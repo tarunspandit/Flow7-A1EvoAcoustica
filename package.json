@@ -1,6 +1,6 @@
 {
   "name": "a1-evo-acoustica",
-  "version": "final",
+  "version": "7",
   "description": "Sound optimizer tool for Denon & Marantz AVRs",
   "main": "main.js",
   "bin": "main.js",
@@ -32,7 +32,8 @@
       "main.js"
     ],
     "assets": [
-      "A1Evo.html"
+      "A1Evo.html",
+      "bass-sorter-worker.js" 
     ]
   }
 }
