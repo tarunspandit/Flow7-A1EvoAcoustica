@@ -768,7 +768,7 @@ and noninfringement. Use at your own risk.
   </div>
   <div class="tooltip-container">
   <label class="checkbox-label">
-  <input type="checkbox" id="prioCenter">Prioritize center speaker
+  <input type="checkbox" id="prioCenter">Center blend mode
   </label>
   <div class="tooltip">Add center speaker to front sound stage optimization. Will force identical crossovers for LCR.</div>
   </div>
@@ -819,7 +819,7 @@ and noninfringement. Use at your own risk.
   </div></div>
 </script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/14.0.1/math.min.js"></script><script>
 
-const evoVersion = "7.0";
+const evoVersion = "7.1";
 const baseUrl = 'http://localhost:4735/measurements', speedDelay = 255, maxDistanceLimit = 7.35;
 let micCalFile = new Array(16384).fill(0), audioCtx = null;
 let jsonName = 'receiver_config.avr', jsonType = 'avr', jsonContent = null;
@@ -1528,7 +1528,7 @@ async function main(){
   };
   console.infoBold(`'A1 Evo Acoustica' completed optimization of your system in ${formatTime(totalTime)} on ${getCurrentDateTime()}.`);
   const oceFilename = await generateOCA();
-  console.warn(`Please return to main application and transfer saved calibration file (.oca) to your receiver using option '3'`);
+  console.warn(`Please return to main application and transfer saved calibration file (.oca) to your receiver using option '4'`);
   console.log(`You can view the original and optimized (final) responses of your system's speakers and subwoofers, along with the applied filters (filter), in REW 'All SPL' tab`);
   console.log(`You can find a copy of the full log of this optimization in the application folder with the same name as the optimization file with '.html' extension`)
   console.log(`Optimal settings for loud / normal listening volume levels will be active in 'Flat' mode`);
@@ -2371,7 +2371,7 @@ async function sortBass() {
         }
       };
       for (let i = 0; i < numWorkers; i++) {
-        const worker = new Worker('./bass-sorter-worker.js'); 
+        const worker = new Worker('./webWorker.js'); 
         workers.push(worker);
         worker.onmessage = (event) => handleWorkerMessage(event, i);
         worker.onerror = (error) => {

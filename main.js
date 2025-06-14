@@ -36,8 +36,7 @@ const MEASUREMENT_CONFIG = {
         enterCalibration: 3000,
         startChannel: 12000,
         getResponse: 20000,
-    }
-};
+    }};
 const BYTES_PER_FLOAT = 4;
 const DECIMATION_FACTOR = 4;
 const decFilterXT32Sub29_taps = [
@@ -102,6 +101,7 @@ const decFilterXT32Sat129_taps = [
     -0.00024198946, -0.0001022896, 0.0000025561833, 0.00005722275, 0.000068608439, 
     0.000054528296, 0.000032770109, 0.000014723354, 0.0000043782347];
 const EXPECTED_NON_XT32_FLOAT_COUNTS = {'XT': {speaker: 512, sub: 512}, 'MultEQ': {speaker: 128, sub: 512 }};
+const MEASUREMENT_CHANNEL_ORDER_FIXEDA = ["FL", "C", "FR", "FWR", "SRA", "SRB", "SBR", "SBL", "SLB", "SLA", "FWL", "FHL", "CH", "FHR", "TFR", "TMR", "TRR", "SHR", "RHR", "TS", "RHL", "SHL", "TRL", "TML", "TFL", "FDL", "FDR", "SDR", "BDR", "SDL", "BDL", "SW1", "SW2", "SW3", "SW4"];
 
 const decomposeFilter = (filterTaps, M) => {
     const L = filterTaps.length;
@@ -1290,11 +1290,11 @@ async function initializeApp() {
             else if (method === 'GET' && (pathname === '/' || pathname === `/${HTML_FILENAME}`)) { 
                 fs.readFile(HTML_FILEPATH, (err, data) => {if (err) {console.error(`[Server] Error reading ${HTML_FILENAME}:`, err); res.writeHead(500, {'Content-Type': 'text/plain'}); res.end('Internal Server Error: Could not load main HTML file.');} else {res.writeHead(200, {'Content-Type': 'text/html'}); res.end(data);}});
             }
-            else if (method === 'GET' && pathname === '/bass-sorter-worker.js') {
-                const workerScriptPath = path.join(__dirname, 'bass-sorter-worker.js');
+            else if (method === 'GET' && pathname === '/webWorker.js') {
+                const workerScriptPath = path.join(__dirname, 'webWorker.js');
                 fs.readFile(workerScriptPath, (err, data) => {
                     if (err) {
-                        console.error(`[Server] Error reading bass-sorter-worker.js:`, err);
+                        console.error(`[Server] Error reading webWorker.js:`, err);
                         res.writeHead(500, { 'Content-Type': 'text/plain' });
                         res.end('Internal Server Error: Could not load worker script.');
                     } else {
@@ -2795,6 +2795,17 @@ function bufferToFloatArray(buffer) {
         floats[i] = buffer.readFloatLE(offset);
     }
     return floats;}
+function fixed32BufferToFloatArray(buffer) {
+    if (!buffer || buffer.length === 0) return [];
+    const intCount = buffer.length / BYTES_PER_FLOAT;
+    const floats = new Array(intCount);
+    const divisor = 2147483648.0; // 2^31
+    for (let i = 0; i < intCount; i++) {
+        const offset = i * BYTES_PER_FLOAT;
+        const intValue = buffer.readInt32LE(offset);
+        floats[i] = intValue / divisor;
+    }
+    return floats;}
 function parseIncomingPacket(buffer) {
     if (buffer.length < 5 || (buffer[0] !== 0x54 && buffer[0] !== 0x52)) return null;
     const totalLength = buffer.readUInt16BE(1);
@@ -2844,11 +2855,58 @@ async function runMeasurementProcess() {
                 return (num >= 1 && num <= 25) ? true : 'Please enter a number between 1 and 25.';
             }
         }]);
-        const { confirm } = await inquirer.prompt([{type: 'confirm', name: 'confirm', message: `This will start a measurement sequence for ${totalPositions} position(s). Please ensure CALIBRATION MICROPHONE that came with the unit is PLUGGED in the AV receiver. Continue?`, default: true}]);
+        const { confirm } = await inquirer.prompt([{type: 'confirm', name: 'confirm', message: `This will start a measurement sequence for ${totalPositions} position(s). Please ensure the CALIBRATION MICROPHONE that came with the unit is PLUGGED IN the AV receiver. Continue?`, default: true}]);
         if (!confirm) { console.log("Measurement process cancelled by user."); return; }
         console.log("\nConnecting to AVR for taking measurements...");
         client = await _connectToAVR(targetIp, AVR_CONTROL_PORT, MEASUREMENT_CONFIG.timeouts.connect, 'measurement');
         const send = createCommandSender(client);
+        console.log("Getting AVR data type information...");
+        let avrDataType = 'float';
+        try {
+            const infoJson = await _sendRawAndParseJsonHelper(client, '54001300004745545f415652494e460000006c', 'GET_AVRINF', MEASUREMENT_CONFIG.timeouts.command, 8 * 1024, 'Measurement');
+            if (infoJson?.DType) {
+                avrDataType = infoJson.DType.toLowerCase();
+                console.log(` -> AVR reported data type: ${infoJson.DType}`);
+            } else {
+                console.warn(" -> Could not determine AVR data type from response. Assuming 'float'.");
+            }
+        } catch (infoError) {
+            console.error(`Error getting AVR info: ${infoError.message}. Assuming 'float' data type.`);
+        }
+        let channelsToMeasureInOrder = [...detectedChannels]; // Default to original order
+        if (avrDataType.startsWith('fixed')) {
+            console.log("AVR has 'fixedA' data type. Re-ordering channels for measurement based on required sequence.");
+            const detectedChannelIdsSet = new Set(detectedChannels.map(ch => ch.commandId));
+            const reorderedChannels = [];
+            for (const channelId of MEASUREMENT_CHANNEL_ORDER_FIXEDA) {
+                if (detectedChannelIdsSet.has(channelId)) {
+                    const channelObject = detectedChannels.find(ch => ch.commandId === channelId);
+                    if (channelObject) {
+                        reorderedChannels.push(channelObject);
+                        detectedChannelIdsSet.delete(channelId);
+                    }
+                }
+            }
+            if (detectedChannelIdsSet.size > 0) {
+                console.warn(`[Warning] The following detected channels are not in the standard 'fixedA' order list and will be measured last: ${[...detectedChannelIdsSet].join(', ')}`);
+                for (const leftoverId of detectedChannelIdsSet) {
+                    const channelObject = detectedChannels.find(ch => ch.commandId === leftoverId);
+                    if (channelObject) reorderedChannels.push(channelObject);
+                }
+            }
+            channelsToMeasureInOrder = reorderedChannels;
+            console.log(` -> New measurement order: [${channelsToMeasureInOrder.map(ch => ch.commandId).join(', ')}]`);
+        } else {
+            console.log("AVR has 'float' data type. Using default measurement order from configuration.");
+        }
+        const isFixedA_MultiSub = avrDataType.startsWith('fixed') && subwooferCount > 1;
+        if (isFixedA_MultiSub) {
+            console.log("\n---!!! IMPORTANT: MANUAL SUBWOOFER CABLE SWAP REQUIRED !!!---");
+            console.log("This AVR model requires a manual cable swap to measure multiple subwoofers.");
+            console.log("You will be prompted when to swap the cables during the process.");
+            console.log("-----------------------------------------------------------------");
+            await delay(4000);
+        }
         console.log("Entering measurement mode...");
         const enterAudyHex = '5400130000454e5445525f4155445900000077';
         await send(enterAudyHex, 'ENTER_AUDY_MEASURE', { timeout: MEASUREMENT_CONFIG.timeouts.enterCalibration, expectAck: true, addChecksum: false });
@@ -2866,46 +2924,78 @@ async function runMeasurementProcess() {
                 if (!ready) throw new Error("User cancelled measurement process.");
             } else {
                 const { ready } = await inquirer.prompt([{ type: 'confirm', name: 'ready', message: `Please move the microphone to the next position (${currentPosition}) and press Enter to continue.`, default: true }]);
-                if (!ready) throw new Error("User cancelled multiple mic position measurement!");
+                if (!ready) throw new Error("User aborted multiple mic position measurement!");
             }
             await sendSetPositionCommand(send, currentPosition, detectedChannels, subwooferCount);
             await delay(500);
-            console.log("\n--- Starting Measurement Cycle (speaker order in the 'receiver_config.avr' file will be followed) ---");
-            for (const channel of detectedChannels) {
-                const channelId = channel.commandId;
-                console.log(`\n----- Sending sweeps for: ${channelId} -----`);
+            console.log("\n--- Starting Measurement Cycle ---");
+            for (const channel of channelsToMeasureInOrder) {
+                let channelIdToMeasure = channel.commandId;
+                let channelIdToSaveAs = channel.commandId;
+                if (isFixedA_MultiSub && channel.commandId.startsWith('SW') && channel.commandId !== 'SW1') {
+                    const subNumber = channel.commandId.replace('SW', '');
+                    console.log(`\n----- MANUAL ACTION REQUIRED for Subwoofer ${subNumber} -----`);
+                    const { readyToSwap } = await inquirer.prompt([{
+                        type: 'confirm',
+                        name: 'readyToSwap',
+                        message: `Please UNPLUG the RCA cable from the 'SW1 PRE-OUT' jack on your AVR and PLUG IN the cable from subwoofer #${subNumber} (${channel.commandId}).\n  Press Enter when you have swapped the cables.`,
+                        default: true
+                    }]);
+                    if (!readyToSwap) throw new Error(`User cancelled cable swap for ${channel.commandId}.`);
+                    channelIdToMeasure = 'SW1';
+                    channelIdToSaveAs = channel.commandId;
+                    console.log(` -> Measuring ${channelIdToSaveAs} via the SW1 output...`);
+                }
+                console.log(`\n----- Sending sweeps for: ${channelIdToSaveAs} (via ${channelIdToMeasure}) -----`);
                 try {
-                    const measurementReport = await startChannelMeasurement(client, channelId);
-                    console.log(` -> Measurement for channel ${channelId} acknowledged by AVR.`);
-                    if (channelId === 'FL' && currentPosition === 1 && measurementReport.Distance !== undefined) {
+                    const measurementReport = await startChannelMeasurement(client, channelIdToMeasure);
+                    console.log(` -> Measurement for channel ${channelIdToSaveAs} acknowledged by AVR.`);
+                    if (channelIdToSaveAs === 'FL' && currentPosition === 1 && measurementReport.Distance !== undefined) {
                         console.log(`  -> Reported distance from Front Left (FL) speaker to microphone tip: ${measurementReport.Distance} cm`);
                     }
                 } catch (channelError) {
-                    console.error(`\n!!! FAILED during measurement command for channel ${channelId}: ${channelError.message}`);
-                    const {continueNext} = await inquirer.prompt([{ type: 'confirm', name: 'continueNext', message: `An error with channel ${channelId} occurred. Continue?`, default: true }]);
+                    console.error(`\n!!! FAILED during measurement command for channel ${channelIdToSaveAs}: ${channelError.message}`);
+                    const {continueNext} = await inquirer.prompt([{ type: 'confirm', name: 'continueNext', message: `An error with channel ${channelIdToSaveAs} occurred. Continue?`, default: true }]);
                     if (!continueNext) throw new Error("User aborted measurement process!");
                 }
                 await delay(1000);
             }
             console.log("\n--- All speakers and sub(s) completed for this microphone position. Starting data retrieval process ---");
             const currentPositionData = {};
-            for (const channel of detectedChannels) {
-                const channelId = channel.commandId;
-                console.log(`\n----- Fetching impulse response for: ${channelId} -----`);
+            for (const channel of channelsToMeasureInOrder) {
+                let channelIdToFetchFrom = channel.commandId;
+                let channelIdToSaveAs = channel.commandId;
+                if (isFixedA_MultiSub && channel.commandId.startsWith('SW') && channel.commandId !== 'SW1') {
+                    channelIdToFetchFrom = 'SW1';
+                    channelIdToSaveAs = channel.commandId;
+                }
+                console.log(`\n----- Fetching impulse response for: ${channelIdToSaveAs} (from ${channelIdToFetchFrom}) -----`);
                 try {
-                    const impulseResponseBuffer = await getChannelImpulseResponse(client, channelId);
-                    const impulseFloats = bufferToFloatArray(impulseResponseBuffer);
-                    if (impulseFloats.length > 0 && !impulseFloats.some(sample => sample !== 0)) console.warn(`Received an all-zero (silent) response. The channel is either muted or disconnected. MEASUREMENT IS INVALID!`);
-                    currentPositionData[channelId] = impulseFloats;
-                    console.log(` -> Successfully retrieved ${impulseFloats.length} samples for ${channelId}.`);
+                    const impulseResponseBuffer = await getChannelImpulseResponse(client, channelIdToFetchFrom);
+                    const impulseFloats = avrDataType.startsWith('fixed')
+                        ? fixed32BufferToFloatArray(impulseResponseBuffer)
+                        : bufferToFloatArray(impulseResponseBuffer);
+                    if (impulseFloats.length > 0 && !impulseFloats.some(sample => sample !== 0)) console.warn(`WARNING: Received an all-zero (silent) response for ${channelIdToSaveAs}. The channel may be disconnected or muted. MEASUREMENT IS INVALID!`);
+                    currentPositionData[channelIdToSaveAs] = impulseFloats;
+                    console.log(` -> Successfully retrieved ${impulseFloats.length} samples for ${channelIdToSaveAs}.`);
                 } catch (fetchError) {
-                    console.error(`\n!!! FAILED to retrieve data for channel ${channelId}: ${fetchError.message}`);
-                    const { continueFetch } = await inquirer.prompt([{ type: 'confirm', name: 'continueFetch', message: `Failed to get data for ${channelId}. Continue?`, default: true }]);
+                    console.error(`\n!!! FAILED to retrieve data for channel ${channelIdToSaveAs}: ${fetchError.message}`);
+                    const { continueFetch } = await inquirer.prompt([{ type: 'confirm', name: 'continueFetch', message: `Failed to get data for ${channelIdToSaveAs}. Continue?`, default: true }]);
                     if (!continueFetch) throw new Error("User aborted data retrieval process.");
                 }
                 await delay(500);
             }
             allPositionsData[`position${currentPosition}`] = currentPositionData;
+            if (isFixedA_MultiSub && currentPosition < totalPositions) {
+                console.log(`\n----- MANUAL ACTION REQUIRED before next position -----`);
+                const { swappedBack } = await inquirer.prompt([{
+                    type: 'confirm',
+                    name: 'swappedBack',
+                    message: `Please restore the original subwoofer cabling.\n  UNPLUG SW2's cable from 'SW1 PRE-OUT' and PLUG THE ORIGINAL SW1 CABLE BACK IN.\n  This is important for the next position. Press Enter when ready.`,
+                    default: true
+                }]);
+                if (!swappedBack) throw new Error("User cancelled before restoring original cable configuration.");
+            }
         }
         if (Object.keys(allPositionsData).length > 0) {
             const restructuredData = {detectedChannels: []};
@@ -2915,7 +3005,7 @@ async function runMeasurementProcess() {
                 channelData.responseData = {};
                 for (let pos = 1; pos <= totalPositions; pos++) {
                     const originalKey = `position${pos}`;
-                    const newKey = (pos - 1).toString(); // Convert to 0-based indexing
+                    const newKey = (pos - 1).toString();
                     if (allPositionsData[originalKey] && allPositionsData[originalKey][channelId]) {
                         const floatArray = allPositionsData[originalKey][channelId];
                         channelData.responseData[newKey] = floatArray;
@@ -2958,11 +3048,9 @@ async function runMeasurementProcess() {
         }
     }}
 async function sendSetPositionCommand(sendFunction, position, detectedChannels, subwooferCount) {
-    //console.log(`Setting measurement position to ${position}...`);
-    const requiredOrder = ["FL", "C", "FR", "FWR", "SRA", "SRB", "SBR", "SBL", "SLB", "SLA", "FWL", "FHL", "CH", "FHR", "TFR", "TMR", "TRR", "SHR", "RHR", "TS", "RHL", "SHL", "TRL", "TML", "TFL", "FDL", "FDR", "SDR", "BDR", "SDL", "BDL", "SW1", "SW2", "SW3", "SW4"];
     const detectedChannelIds = new Set(detectedChannels.map(ch => ch.commandId));
     const channelsForPayload = [];
-    for (const channelId of requiredOrder) {
+    for (const channelId of MEASUREMENT_CHANNEL_ORDER_FIXEDA) {
         if (detectedChannelIds.has(channelId)) {
             channelsForPayload.push(channelId);
         }
@@ -2977,7 +3065,6 @@ async function sendSetPositionCommand(sendFunction, position, detectedChannels, 
     const payloadObject = { "Position": parseInt(position, 10), "ChSetup": channelsForPayload };
     let jsonString = JSON.stringify(payloadObject);
     jsonString += '}';
-    //console.log(` -> Sending payload: ${jsonString}`);
     const packet = buildAvrPacket('SET_POSNUM', jsonString);
     await sendFunction(packet.toString('hex'), 'SET_POSNUM', {
         addChecksum: false,
