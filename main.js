@@ -2873,7 +2873,7 @@ async function runMeasurementProcess() {
         } catch (infoError) {
             console.error(`Error getting AVR info: ${infoError.message}. Assuming 'float' data type.`);
         }
-        let channelsToMeasureInOrder = [...detectedChannels]; // Default to original order
+        let channelsToMeasureInOrder = [...detectedChannels];
         if (avrDataType.startsWith('fixed')) {
             console.log("AVR has 'fixedA' data type. Re-ordering channels for measurement based on required sequence.");
             const detectedChannelIdsSet = new Set(detectedChannels.map(ch => ch.commandId));
@@ -2917,84 +2917,113 @@ async function runMeasurementProcess() {
         await delay(avrInitDelay);
         console.log("AVR should now be ready.");
         const allPositionsData = {};
-        for (let currentPosition = 1; currentPosition <= totalPositions; currentPosition++) {
-            console.log(`\n=============== MIC POSITION ${currentPosition} / ${totalPositions} ===============`);
-            if (currentPosition === 1) {
-                const { ready } = await inquirer.prompt([{ type: 'confirm', name: 'ready', message: `Please place the microphone at the MAIN LISTENING POSITION, its tip at ear level and pointing directly up! Then press Enter to begin.`, default: true }]);
+        if (isFixedA_MultiSub) {
+            const subChannels = channelsToMeasureInOrder.filter(c => c.commandId.startsWith('SW'));
+            const nonSubChannels = channelsToMeasureInOrder.filter(c => !c.commandId.startsWith('SW'));
+            for (let currentPosition = 1; currentPosition <= totalPositions; currentPosition++) {
+                allPositionsData[`position${currentPosition}`] = {};
+                console.log(`\n=============== MIC POSITION ${currentPosition} / ${totalPositions} ===============`);
+                const micPrompt = currentPosition === 1
+                    ? `Please place the microphone at the MAIN LISTENING POSITION, its tip at ear level and pointing directly up! Then press Enter to begin.`
+                    : `Please move the microphone to the next position (${currentPosition}) and press Enter to continue.`;
+                const { ready } = await inquirer.prompt([{ type: 'confirm', name: 'ready', message: micPrompt, default: true }]);
                 if (!ready) throw new Error("User cancelled measurement process.");
-            } else {
-                const { ready } = await inquirer.prompt([{ type: 'confirm', name: 'ready', message: `Please move the microphone to the next position (${currentPosition}) and press Enter to continue.`, default: true }]);
-                if (!ready) throw new Error("User aborted multiple mic position measurement!");
-            }
-            await sendSetPositionCommand(send, currentPosition, detectedChannels, subwooferCount);
-            await delay(500);
-            console.log("\n--- Starting Measurement Cycle ---");
-            for (const channel of channelsToMeasureInOrder) {
-                let channelIdToMeasure = channel.commandId;
-                let channelIdToSaveAs = channel.commandId;
-                if (isFixedA_MultiSub && channel.commandId.startsWith('SW') && channel.commandId !== 'SW1') {
-                    const subNumber = channel.commandId.replace('SW', '');
-                    console.log(`\n----- MANUAL ACTION REQUIRED for Subwoofer ${subNumber} -----`);
-                    const { readyToSwap } = await inquirer.prompt([{
-                        type: 'confirm',
-                        name: 'readyToSwap',
-                        message: `Please UNPLUG the RCA cable from the 'SW1 PRE-OUT' jack on your AVR and PLUG IN the cable from subwoofer #${subNumber} (${channel.commandId}).\n  Press Enter when you have swapped the cables.`,
-                        default: true
-                    }]);
-                    if (!readyToSwap) throw new Error(`User cancelled cable swap for ${channel.commandId}.`);
-                    channelIdToMeasure = 'SW1';
-                    channelIdToSaveAs = channel.commandId;
-                    console.log(` -> Measuring ${channelIdToSaveAs} via the SW1 output...`);
+                console.log("\n--- Starting Measurement Cycle for SPEAKERS (Non-Subwoofers) ---");
+                if (nonSubChannels.length > 0) {
+                    await sendSetPositionCommand(send, currentPosition, nonSubChannels, subwooferCount);
+                    await delay(500);
+                    for (const channel of nonSubChannels) {
+                        console.log(`\n----- Sending sweeps for: ${channel.commandId} -----`);
+                        const measurementReport = await startChannelMeasurement(client, channel.commandId);
+                        console.log(` -> Measurement for channel ${channel.commandId} acknowledged by AVR.`);
+                        if (channel.commandId === 'FL' && currentPosition === 1 && measurementReport.Distance !== undefined) {
+                            console.log(`  -> Reported distance from Front Left (FL) speaker to microphone tip: ${measurementReport.Distance} cm`);
+                        }
+                        await delay(1000);
+                    }
+                    console.log("\n--- Retrieving impulse response data for SPEAKERS ---");
+                    for (const channel of nonSubChannels) {
+                        console.log(`\n----- Fetching impulse response for: ${channel.commandId} -----`);
+                        const impulseResponseBuffer = await getChannelImpulseResponse(client, channel.commandId);
+                        const impulseFloats = fixed32BufferToFloatArray(impulseResponseBuffer);
+                        allPositionsData[`position${currentPosition}`][channel.commandId] = impulseFloats;
+                        console.log(` -> Successfully retrieved ${impulseFloats.length} samples for ${channel.commandId}.`);
+                        await delay(500);
+                    }
+                } else {
+                    console.log("No non-subwoofer speakers detected to measure in this phase.");
                 }
-                console.log(`\n----- Sending sweeps for: ${channelIdToSaveAs} (via ${channelIdToMeasure}) -----`);
-                try {
-                    const measurementReport = await startChannelMeasurement(client, channelIdToMeasure);
-                    console.log(` -> Measurement for channel ${channelIdToSaveAs} acknowledged by AVR.`);
-                    if (channelIdToSaveAs === 'FL' && currentPosition === 1 && measurementReport.Distance !== undefined) {
+                console.log("\n--- Starting Measurement Cycle for SUBWOOFERS (Individually) ---");
+                for (const subChannel of subChannels) {
+                    const channelIdToSaveAs = subChannel.commandId;
+                    if (channelIdToSaveAs !== 'SW1') {
+                        const subNumber = channelIdToSaveAs.replace('SW', '');
+                        console.log(`\n----- MANUAL ACTION REQUIRED for Subwoofer ${subNumber} -----`);
+                        const { readyToSwap } = await inquirer.prompt([{
+                            type: 'confirm',
+                            name: 'readyToSwap',
+                            message: `Please UNPLUG the RCA cable from the 'SW1 PRE-OUT' jack on your AVR and PLUG IN the RCA cable from subwoofer #${subNumber} (${channelIdToSaveAs}).\n  Press Enter when you have swapped the cables.`,
+                            default: true
+                        }]);
+                        if (!readyToSwap) throw new Error(`User cancelled cable swap for ${channelIdToSaveAs}.`);
+                    } else {
+                         console.log(`\n----- Preparing to measure Subwoofer #1 (SW1) -----`);
+                         await inquirer.prompt([{ type: 'confirm', name: 'ready', message: `Please ensure the RCA cable for SW1 is connected to the 'SW1 PRE-OUT' jack on the AVR.\nPress Enter to continue.`, default: true }]);
+                    }
+                    const subCycleChannels = [{ commandId: 'FL' }, { commandId: 'FR' }, { commandId: 'SW1' }];
+                    console.log(` -> Resetting AVR state with a [FL, FR, SW1] measurement cycle...`);
+                    await sendSetPositionCommand(send, currentPosition, subCycleChannels, subwooferCount);
+                    await delay(500);
+                    console.log(" -> Sweeping FL/FR (responses will be ignored)...");
+                    await startChannelMeasurement(client, 'FL');
+                    await startChannelMeasurement(client, 'FR');
+                    console.log(` -> Sweeping ${channelIdToSaveAs} via SW1 input...`);
+                    await startChannelMeasurement(client, 'SW1');
+                    console.log(` -> Measurement sequence for ${channelIdToSaveAs} complete.`);
+                    await delay(1000);
+                    console.log(`\n----- Fetching impulse response for: ${channelIdToSaveAs} -----`);
+                    const impulseResponseBuffer = await getChannelImpulseResponse(client, 'SW1');
+                    const impulseFloats = fixed32BufferToFloatArray(impulseResponseBuffer);
+                    allPositionsData[`position${currentPosition}`][channelIdToSaveAs] = impulseFloats;
+                    console.log(` -> Successfully retrieved ${impulseFloats.length} samples for ${channelIdToSaveAs}.`);
+                    await delay(500);
+                }
+                console.log(`\n----- MANUAL ACTION REQUIRED: Restore Cabling -----`);
+                await inquirer.prompt([{type: 'confirm', name: 'ready', message: `All measurements for position ${currentPosition} are complete.\nPlease restore the original subwoofer cabling (plug the SW1 cable back into the 'SW1 PRE-OUT' jack).\nThis is important for the next position or for finishing. Press Enter when ready.`, default: true}]);
+            }
+        } else {
+            for (let currentPosition = 1; currentPosition <= totalPositions; currentPosition++) {
+                allPositionsData[`position${currentPosition}`] = {};
+                console.log(`\n=============== MIC POSITION ${currentPosition} / ${totalPositions} ===============`);
+                const micPrompt = currentPosition === 1
+                    ? `Please place the microphone at the MAIN LISTENING POSITION, its tip at ear level and pointing directly up! Then press Enter to begin.`
+                    : `Please move the microphone to the next position (${currentPosition}) and press Enter to continue.`;
+                const { ready } = await inquirer.prompt([{ type: 'confirm', name: 'ready', message: micPrompt, default: true }]);
+                if (!ready) throw new Error("User cancelled measurement process.");
+                await sendSetPositionCommand(send, currentPosition, channelsToMeasureInOrder, subwooferCount);
+                await delay(500);
+                console.log("\n--- Starting Measurement Cycle ---");
+                for (const channel of channelsToMeasureInOrder) {
+                    console.log(`\n----- Sending sweeps for: ${channel.commandId} -----`);
+                    const measurementReport = await startChannelMeasurement(client, channel.commandId);
+                    console.log(` -> Measurement for channel ${channel.commandId} acknowledged by AVR.`);
+                    if (channel.commandId === 'FL' && currentPosition === 1 && measurementReport.Distance !== undefined) {
                         console.log(`  -> Reported distance from Front Left (FL) speaker to microphone tip: ${measurementReport.Distance} cm`);
                     }
-                } catch (channelError) {
-                    console.error(`\n!!! FAILED during measurement command for channel ${channelIdToSaveAs}: ${channelError.message}`);
-                    const {continueNext} = await inquirer.prompt([{ type: 'confirm', name: 'continueNext', message: `An error with channel ${channelIdToSaveAs} occurred. Continue?`, default: true }]);
-                    if (!continueNext) throw new Error("User aborted measurement process!");
+                    await delay(1000);
                 }
-                await delay(1000);
-            }
-            console.log("\n--- All speakers and sub(s) completed for this microphone position. Starting data retrieval process ---");
-            const currentPositionData = {};
-            for (const channel of channelsToMeasureInOrder) {
-                let channelIdToFetchFrom = channel.commandId;
-                let channelIdToSaveAs = channel.commandId;
-                if (isFixedA_MultiSub && channel.commandId.startsWith('SW') && channel.commandId !== 'SW1') {
-                    channelIdToFetchFrom = 'SW1';
-                    channelIdToSaveAs = channel.commandId;
-                }
-                console.log(`\n----- Fetching impulse response for: ${channelIdToSaveAs} (from ${channelIdToFetchFrom}) -----`);
-                try {
-                    const impulseResponseBuffer = await getChannelImpulseResponse(client, channelIdToFetchFrom);
+                console.log("\n--- All speakers/subs for this position are complete. Starting data retrieval ---");
+                for (const channel of channelsToMeasureInOrder) {
+                    console.log(`\n----- Fetching impulse response for: ${channel.commandId} -----`);
+                    const impulseResponseBuffer = await getChannelImpulseResponse(client, channel.commandId);
                     const impulseFloats = avrDataType.startsWith('fixed')
                         ? fixed32BufferToFloatArray(impulseResponseBuffer)
                         : bufferToFloatArray(impulseResponseBuffer);
-                    if (impulseFloats.length > 0 && !impulseFloats.some(sample => sample !== 0)) console.warn(`WARNING: Received an all-zero (silent) response for ${channelIdToSaveAs}. The channel may be disconnected or muted. MEASUREMENT IS INVALID!`);
-                    currentPositionData[channelIdToSaveAs] = impulseFloats;
-                    console.log(` -> Successfully retrieved ${impulseFloats.length} samples for ${channelIdToSaveAs}.`);
-                } catch (fetchError) {
-                    console.error(`\n!!! FAILED to retrieve data for channel ${channelIdToSaveAs}: ${fetchError.message}`);
-                    const { continueFetch } = await inquirer.prompt([{ type: 'confirm', name: 'continueFetch', message: `Failed to get data for ${channelIdToSaveAs}. Continue?`, default: true }]);
-                    if (!continueFetch) throw new Error("User aborted data retrieval process.");
+                    if (impulseFloats.length > 0 && !impulseFloats.some(sample => sample !== 0)) console.warn(`WARNING: Received an all-zero (silent) response for ${channel.commandId}. The channel may be disconnected or muted. MEASUREMENT IS INVALID!`);
+                    allPositionsData[`position${currentPosition}`][channel.commandId] = impulseFloats;
+                    console.log(` -> Successfully retrieved ${impulseFloats.length} samples for ${channel.commandId}.`);
+                    await delay(500);
                 }
-                await delay(500);
-            }
-            allPositionsData[`position${currentPosition}`] = currentPositionData;
-            if (isFixedA_MultiSub && currentPosition < totalPositions) {
-                console.log(`\n----- MANUAL ACTION REQUIRED before next position -----`);
-                const { swappedBack } = await inquirer.prompt([{
-                    type: 'confirm',
-                    name: 'swappedBack',
-                    message: `Please restore the original subwoofer cabling.\n  UNPLUG SW2's cable from 'SW1 PRE-OUT' and PLUG THE ORIGINAL SW1 CABLE BACK IN.\n  This is important for the next position. Press Enter when ready.`,
-                    default: true
-                }]);
-                if (!swappedBack) throw new Error("User cancelled before restoring original cable configuration.");
             }
         }
         if (Object.keys(allPositionsData).length > 0) {
@@ -3046,7 +3075,8 @@ async function runMeasurementProcess() {
             console.log("Closing AVR connection...");
             client.destroy();
         }
-    }}
+    }
+}
 async function sendSetPositionCommand(sendFunction, position, detectedChannels, subwooferCount) {
     const detectedChannelIds = new Set(detectedChannels.map(ch => ch.commandId));
     const channelsForPayload = [];
