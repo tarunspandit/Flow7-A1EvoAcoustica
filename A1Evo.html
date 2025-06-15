@@ -1114,6 +1114,20 @@ and noninfringement. Use at your own risk.
   </div>
   </div>
   </div>
+  <div class="slider-container">
+  <div class="crossover-sliders">
+  <div class="crossover-slider">
+  <div class="slider-label">
+  <span>Maximum EQ correction frequency</span>
+  <span id="maxEqFreqValue">12.5 kHz</span>
+  </div>
+  <div class="tooltip-container">
+  <input type="range" id="maxEqFreqSlider" class="slider" min="0" max="10" step="1" value="5">
+  <div class="tooltip">Select maximum frequency for EQ filter generation (affects treble correction range)</div>
+  </div>
+  </div>
+  </div>
+  </div>
   <div class="option-container" style="display: flex; flex-direction: row; gap: 0.5px;">
   <div class="tooltip-container">
   <label class="checkbox-label">
@@ -1180,10 +1194,10 @@ let micCalFile = new Array(16384).fill(0), audioCtx = null;
 let jsonName = 'receiver_config.avr', jsonType = 'avr', jsonContent = null;
 let folderPath, localAppPath = null, ocafileName, sOs = null, isCirrusLogic, isGriffin, freqIndex = [], distFL = null, modelDelayLimit, minDistAccuracy, mSec = [], hardNegative, hardPositive, xt32 = true, xt = false;
 let nSpeakers = null, nSubs = null, subMinTrim = -12, subMaxTrim = 12, lpf4LFE, filterCompensation, targetCurvePath, targetLevel, responseTarget, dataTarget, tcName, rewMaxLimit, isPreProcessed = false, isAutomated;
-let customLevel = [], commandId = [], customDistance = [], customInvert = [], customCrossover = [], customFilter = [], deqFilter = [], subTrim = [], customMinFreq = [], customMaxFreq = [], customMinFreqFR = [], customMaxFreqFR = [], customMinFreqC = [], customMaxFreqC = [],customMargin = [], subAllPassQ = null, allpassQ = [], hiPass, hType;
+let customLevel = [], commandId = [], customDistance = [], customInvert = [], customCrossover = [], customFilter = [], deqFilter = [], subTrim = [], customMinFreq = [], customMaxFreq = [], customMinFreqFR = [], customMaxFreqFR = [], customMinFreqC = [], customMaxFreqC = [], customMaxEqFreq = [], customMargin = [], subAllPassQ = null, allpassQ = [], hiPass, hType;
 const defaultSlope = "L-R4";
 const dbValues = [-12, -15, -18, -20, -25];
-var subBoost = 0, bassFill = 0, levelLowVol = 2, enableInversion = false, addCenter = false, enableWeakBass = false, noAllpass = false, minFreq = 40, maxFreq = 250, minFreqFR = 40, maxFreqFR = 250, minFreqC = 40, maxFreqC = 250,  subRolloffEnabled = false, subRolloffFreq = null, subRolloffSlope = defaultSlope, lpf4lfeValue = null;
+var subBoost = 0, bassFill = 0, levelLowVol = 2, enableInversion = false, addCenter = false, enableWeakBass = false, noAllpass = false, minFreq = 40, maxFreq = 250, minFreqFR = 40, maxFreqFR = 250, minFreqC = 40, maxFreqC = 250, maxEqFreq = 12500, subRolloffEnabled = false, subRolloffFreq = null, subRolloffSlope = defaultSlope, lpf4lfeValue = null;
 
 function toggleExpertDrawer() {
   const drawer = document.getElementById('expertDrawer');
@@ -1812,8 +1826,8 @@ async function main(){
   measurementChoice.classList.add('transitioned');
   const startTime = performance.now();
   console.infoBold(`** Customizations start **`);
-  const defaults = {subBoost: 0, bassFill: 0, levelLowVol: 2, enableInversion: false, addCenter: false, enableWeakBass: false, noAllpass: false, minFreq: 40, maxFreq: 250, minFreqFR: 40, maxFreqFR: 250, minFreqC: 40, maxFreqC: 250};
-  const customizations = {subBoost, bassFill, levelLowVol, enableInversion, addCenter, enableWeakBass, noAllpass, minFreq, maxFreq, minFreqFR, maxFreqFR, minFreqC, maxFreqC};
+  const defaults = {subBoost: 0, bassFill: 0, levelLowVol: 2, enableInversion: false, addCenter: false, enableWeakBass: false, noAllpass: false, minFreq: 40, maxFreq: 250, minFreqFR: 40, maxFreqFR: 250, minFreqC: 40, maxFreqC: 250, maxEqFreq: 12500};
+  const customizations = {subBoost, bassFill, levelLowVol, enableInversion, addCenter, enableWeakBass, noAllpass, minFreq, maxFreq, minFreqFR, maxFreqFR, minFreqC, maxFreqC, maxEqFreq};
   const descriptions = {
     subBoost: `Subwoofer EQ filters maximum allowed boost (dB): `,
     bassFill: `Subwoofer target curve infill value (dB): `,
@@ -1827,7 +1841,8 @@ async function main(){
 	  minFreqC: `Minimum searchable crossover frequency - center speaker: `,
     maxFreqC: `Maximum searchable crossover frequency - center speaker: `,
     minFreq: `Minimum searchable crossover frequency - all other speakers: `,
-    maxFreq: `Maximum searchable crossover frequency - all other speakers: `
+    maxFreq: `Maximum searchable crossover frequency - all other speakers: `,
+    maxEqFreq: `Maximum EQ correction frequency (Hz): `
   };
   for (let key in customizations) {
     let displayValue = customizations[key];
@@ -3305,7 +3320,7 @@ async function refFilter(index, orgIndex) {
   await new Promise(resolve => setTimeout(resolve, speedDelay / 4));
   await postSafe(`http://localhost:4735/eq/house-curve`, targetCurvePath, 'House curve set');
   await new Promise(resolve => setTimeout(resolve, speedDelay));
-  await postSafe(`http://localhost:4735/eq/match-target-settings`, {startFrequency: (!xt32 && !xt) ? 375 : 200, endFrequency: 12500, individualMaxBoostdB: 3, overallMaxBoostdB: 0, flatnessTargetdB: 1, varyQAbove200Hz: true, allowLowShelf: false, allowHighShelf: true, highShelfMin: -3, highShelfMax: 3}, 'Update processed');
+  await postSafe(`http://localhost:4735/eq/match-target-settings`, {startFrequency: (!xt32 && !xt) ? 375 : 200, endFrequency: maxEqFreq, individualMaxBoostdB: 3, overallMaxBoostdB: 0, flatnessTargetdB: 1, varyQAbove200Hz: true, allowLowShelf: false, allowHighShelf: true, highShelfMin: -3, highShelfMax: 3}, 'Update processed');
   await new Promise(resolve => setTimeout(resolve, speedDelay / 4));
   await postSafe(`${baseUrl}/${mpIndex + 3}/room-curve-settings`, {addRoomCurve: false}, 'Update processed');
   await new Promise(resolve => setTimeout(resolve, speedDelay / 4));
@@ -3940,6 +3955,7 @@ document.addEventListener('DOMContentLoaded', () => {
   UpdateMaxFreqFR(maxFreqFR, true);
   UpdateMinFreqC(minFreqC, true);
   UpdateMaxFreqC(maxFreqC, true);
+  UpdateMaxEqFreq(maxEqFreq, true);
   UpdateenableInversion(enableInversion, false);
   UpdateaddCenter(addCenter, false);
   UpdateisWeakBass(enableWeakBass, false);
@@ -3984,6 +4000,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const index = parseInt(e.target.value, 10);
     const value = customMaxFreqC[index];
     UpdateMaxFreqC(value, false);
+  });
+  document.getElementById('maxEqFreqSlider').addEventListener('input', function (e) {
+    const index = parseInt(e.target.value, 10);
+    const value = customMaxEqFreq[index];
+    UpdateMaxEqFreq(value, false);
   });
   document.getElementById('disableSpeakerInversion').addEventListener('change', function (event) {
     UpdateenableInversion(event.target.checked, false);
@@ -4205,6 +4226,7 @@ function readContents() {
   customMaxFreqFR = freqIndex.filter(freq => freq >= 40);
 	customMinFreqC = freqIndex.filter(freq => freq < 180);
   customMaxFreqC = freqIndex.filter(freq => freq >= 40);
+  customMaxEqFreq = [2500, 5000, 7500, 10000, 12500, 15000, 17500, 20000, 22000, 24000, 25000];
   distFL = 2.75;
   console.info(`Model specific speed of sound setting: ${sOs} m/s`);
   console.info(`Model is capable of setting 180Hz crossover: ${!no180}`);
@@ -4322,6 +4344,16 @@ function UpdateMaxFreqC(maxFreqHzC, syncSlider) {
     if (syncSlider) {
       const index = customMaxFreq.findIndex(freq => Math.abs(freq - maxFreqHzC) < 0.1);
       if (index !== -1) document.getElementById('maxFreqSliderC').value = index; 
+    }
+  }}
+function UpdateMaxEqFreq(maxEqFreqHz, syncSlider) {
+  if (!isNaN(maxEqFreqHz)) {
+    maxEqFreq = maxEqFreqHz;
+    const displayValue = maxEqFreqHz >= 1000 ? (maxEqFreqHz / 1000).toFixed(1) + ' kHz' : maxEqFreqHz + ' Hz';
+    document.getElementById('maxEqFreqValue').textContent = displayValue;
+    if (syncSlider) {
+      const index = customMaxEqFreq.findIndex(freq => Math.abs(freq - maxEqFreqHz) < 0.1);
+      if (index !== -1) document.getElementById('maxEqFreqSlider').value = index; 
     }
   }}
 function UpdateisWeakBass(disableWB, syncToggle) {
