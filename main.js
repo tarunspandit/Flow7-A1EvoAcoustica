@@ -2855,7 +2855,7 @@ async function runMeasurementProcess() {
                 return (num >= 1 && num <= 25) ? true : 'Please enter a number between 1 and 25.';
             }
         }]);
-        const { confirm } = await inquirer.prompt([{type: 'confirm', name: 'confirm', message: `This will start a measurement sequence for ${totalPositions} position(s). Please ensure the CALIBRATION MICROPHONE that came with the unit is PLUGGED IN the AV receiver. Continue?`, default: true}]);
+        const { confirm } = await inquirer.prompt([{type: 'confirm', name: 'confirm', message: `This will start a measurement sequence for ${totalPositions} microphone position(s). Please ENSURE the CALIBRATION MICROPHONE that came with the unit is PLUGGED IN the mic input of the AV receiver. Continue?`, default: true}]);
         if (!confirm) { console.log("Measurement process cancelled by user."); return; }
         console.log("\nConnecting to AVR for taking measurements...");
         client = await _connectToAVR(targetIp, AVR_CONTROL_PORT, MEASUREMENT_CONFIG.timeouts.connect, 'measurement');
@@ -2962,13 +2962,13 @@ async function runMeasurementProcess() {
                         const { readyToSwap } = await inquirer.prompt([{
                             type: 'confirm',
                             name: 'readyToSwap',
-                            message: `Please UNPLUG the RCA cable from the 'SW1 PRE-OUT' jack on your AVR and PLUG IN the RCA cable from subwoofer #${subNumber} (${channelIdToSaveAs}).\n  Press Enter when you have swapped the cables.`,
+                            message: `Please UNPLUG the RCA cable from the 'SW1 PRE-OUT' jack at the back of the AVR and PLUG IN the RCA cable from subwoofer #${subNumber} (${channelIdToSaveAs}).\n  Press Enter when you have swapped the cables.`,
                             default: true
                         }]);
                         if (!readyToSwap) throw new Error(`User cancelled cable swap for ${channelIdToSaveAs}.`);
                     } else {
                          console.log(`\n----- Preparing to measure Subwoofer #1 (SW1) -----`);
-                         await inquirer.prompt([{ type: 'confirm', name: 'ready', message: `Please ensure the RCA cable for SW1 is connected to the 'SW1 PRE-OUT' jack on the AVR.\nPress Enter to continue.`, default: true }]);
+                         await inquirer.prompt([{ type: 'confirm', name: 'ready', message: `Please ensure the RCA cable for SW1 is connected to the 'SW1 PRE-OUT' jack on the back of the AVR.\nPress Enter to continue.`, default: true }]);
                     }
                     const subCycleChannels = [{ commandId: 'FL' }, { commandId: 'FR' }, { commandId: 'SW1' }];
                     console.log(` -> Resetting AVR state with a [FL, FR, SW1] measurement cycle...`);

@@ -3822,7 +3822,7 @@ function readContents() {
   const griffinLite = ["X8500H", "AV8805", "X6700H", "X4700H", "AV7706", "SR8015", "SR7015", " AV 10", "VR-A1H", "VC-A1H", "X3800H", "X4800H", "EMA 30", "EMA 40", "EMA 50", "X6800H", "R-A10H", "C-A10H"];
   const baseFreq = [40, 60, 80, 90, 100, 110, 120, 150, 200, 250];
   const extraFreq = 180;
-  const modelName = jsonContent.targetModelName;
+  const modelName = jsonContent.targetModelName.toUpperCase();
   console.info(`Target AV receiver model: ${modelName}`);
   if (jsonContent.enMultEQType != 2) {
     xt32 = false;
