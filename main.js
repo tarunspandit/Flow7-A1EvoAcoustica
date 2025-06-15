@@ -2922,6 +2922,7 @@ async function runMeasurementProcess() {
             const nonSubChannels = channelsToMeasureInOrder.filter(c => !c.commandId.startsWith('SW'));
             for (let currentPosition = 1; currentPosition <= totalPositions; currentPosition++) {
                 allPositionsData[`position${currentPosition}`] = {};
+                const reportsForPosition = new Map();
                 console.log(`\n=============== MIC POSITION ${currentPosition} / ${totalPositions} ===============`);
                 const micPrompt = currentPosition === 1
                     ? `Please place the microphone at the MAIN LISTENING POSITION, its tip at ear level and pointing directly up! Then press Enter to begin.`
@@ -2935,6 +2936,7 @@ async function runMeasurementProcess() {
                     for (const channel of nonSubChannels) {
                         console.log(`\n----- Sending sweeps for: ${channel.commandId} -----`);
                         const measurementReport = await startChannelMeasurement(client, channel.commandId);
+                        reportsForPosition.set(channel.commandId, measurementReport);
                         console.log(` -> Measurement for channel ${channel.commandId} acknowledged by AVR.`);
                         if (channel.commandId === 'FL' && currentPosition === 1 && measurementReport.Distance !== undefined) {
                             console.log(`  -> Reported distance from Front Left (FL) speaker to microphone tip: ${measurementReport.Distance} cm`);
@@ -2945,13 +2947,19 @@ async function runMeasurementProcess() {
                     for (const channel of nonSubChannels) {
                         console.log(`\n----- Fetching impulse response for: ${channel.commandId} -----`);
                         const impulseResponseBuffer = await getChannelImpulseResponse(client, channel.commandId);
-                        const impulseFloats = fixed32BufferToFloatArray(impulseResponseBuffer);
+                        let impulseFloats = fixed32BufferToFloatArray(impulseResponseBuffer);
+                        const report = reportsForPosition.get(channel.commandId);
+                        const responseCoef = report?.ResponseCoef;
+                        if (typeof responseCoef === 'number' && responseCoef !== 1) {
+                            console.log(`  -> Applying ResponseCoef of ${responseCoef} to measurement data for ${channel.commandId}.`);
+                            for (let i = 0; i < impulseFloats.length; i++) {
+                                impulseFloats[i] *= responseCoef;
+                            }
+                        }
                         allPositionsData[`position${currentPosition}`][channel.commandId] = impulseFloats;
                         console.log(` -> Successfully retrieved ${impulseFloats.length} samples for ${channel.commandId}.`);
                         await delay(500);
                     }
-                } else {
-                    console.log("No non-subwoofer speakers detected to measure in this phase.");
                 }
                 console.log("\n--- Starting Measurement Cycle for SUBWOOFERS (Individually) ---");
                 for (const subChannel of subChannels) {
@@ -2978,12 +2986,19 @@ async function runMeasurementProcess() {
                     await startChannelMeasurement(client, 'FL');
                     await startChannelMeasurement(client, 'FR');
                     console.log(` -> Sweeping ${channelIdToSaveAs} via SW1 input...`);
-                    await startChannelMeasurement(client, 'SW1');
+                    const subMeasurementReport = await startChannelMeasurement(client, 'SW1');
                     console.log(` -> Measurement sequence for ${channelIdToSaveAs} complete.`);
                     await delay(1000);
                     console.log(`\n----- Fetching impulse response for: ${channelIdToSaveAs} -----`);
                     const impulseResponseBuffer = await getChannelImpulseResponse(client, 'SW1');
-                    const impulseFloats = fixed32BufferToFloatArray(impulseResponseBuffer);
+                    let impulseFloats = fixed32BufferToFloatArray(impulseResponseBuffer);
+                    const subResponseCoef = subMeasurementReport?.ResponseCoef;
+                    if (typeof subResponseCoef === 'number' && subResponseCoef !== 1) {
+                        console.log(`  -> Applying ResponseCoef of ${subResponseCoef} to measurement data for ${channelIdToSaveAs}.`);
+                        for (let i = 0; i < impulseFloats.length; i++) {
+                            impulseFloats[i] *= subResponseCoef;
+                        }
+                    }
                     allPositionsData[`position${currentPosition}`][channelIdToSaveAs] = impulseFloats;
                     console.log(` -> Successfully retrieved ${impulseFloats.length} samples for ${channelIdToSaveAs}.`);
                     await delay(500);
@@ -2994,6 +3009,7 @@ async function runMeasurementProcess() {
         } else {
             for (let currentPosition = 1; currentPosition <= totalPositions; currentPosition++) {
                 allPositionsData[`position${currentPosition}`] = {};
+                const reportsForPosition = new Map();
                 console.log(`\n=============== MIC POSITION ${currentPosition} / ${totalPositions} ===============`);
                 const micPrompt = currentPosition === 1
                     ? `Please place the microphone at the MAIN LISTENING POSITION, its tip at ear level and pointing directly up! Then press Enter to begin.`
@@ -3006,6 +3022,7 @@ async function runMeasurementProcess() {
                 for (const channel of channelsToMeasureInOrder) {
                     console.log(`\n----- Sending sweeps for: ${channel.commandId} -----`);
                     const measurementReport = await startChannelMeasurement(client, channel.commandId);
+                    reportsForPosition.set(channel.commandId, measurementReport);
                     console.log(` -> Measurement for channel ${channel.commandId} acknowledged by AVR.`);
                     if (channel.commandId === 'FL' && currentPosition === 1 && measurementReport.Distance !== undefined) {
                         console.log(`  -> Reported distance from Front Left (FL) speaker to microphone tip: ${measurementReport.Distance} cm`);
@@ -3016,9 +3033,17 @@ async function runMeasurementProcess() {
                 for (const channel of channelsToMeasureInOrder) {
                     console.log(`\n----- Fetching impulse response for: ${channel.commandId} -----`);
                     const impulseResponseBuffer = await getChannelImpulseResponse(client, channel.commandId);
-                    const impulseFloats = avrDataType.startsWith('fixed')
+                    let impulseFloats = avrDataType.startsWith('fixed')
                         ? fixed32BufferToFloatArray(impulseResponseBuffer)
                         : bufferToFloatArray(impulseResponseBuffer);
+                    const report = reportsForPosition.get(channel.commandId);
+                    const responseCoef = report?.ResponseCoef;
+                    if (typeof responseCoef === 'number' && responseCoef !== 1) {
+                        console.log(`  -> Applying ResponseCoef of ${responseCoef} to measurement data for ${channel.commandId}.`);
+                        for (let i = 0; i < impulseFloats.length; i++) {
+                            impulseFloats[i] *= responseCoef;
+                        }
+                    }
                     if (impulseFloats.length > 0 && !impulseFloats.some(sample => sample !== 0)) console.warn(`WARNING: Received an all-zero (silent) response for ${channel.commandId}. The channel may be disconnected or muted. MEASUREMENT IS INVALID!`);
                     allPositionsData[`position${currentPosition}`][channel.commandId] = impulseFloats;
                     console.log(` -> Successfully retrieved ${impulseFloats.length} samples for ${channel.commandId}.`);
@@ -3075,8 +3100,7 @@ async function runMeasurementProcess() {
             console.log("Closing AVR connection...");
             client.destroy();
         }
-    }
-}
+    }}
 async function sendSetPositionCommand(sendFunction, position, detectedChannels, subwooferCount) {
     const detectedChannelIds = new Set(detectedChannels.map(ch => ch.commandId));
     const channelsForPayload = [];

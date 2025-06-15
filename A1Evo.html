@@ -819,7 +819,7 @@ and noninfringement. Use at your own risk.
   </div></div>
 </script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/14.0.1/math.min.js"></script><script>
 
-const evoVersion = "7.2";
+const evoVersion = "7.3";
 const baseUrl = 'http://localhost:4735/measurements', speedDelay = 255, maxDistanceLimit = 7.35;
 let micCalFile = new Array(16384).fill(0), audioCtx = null;
 let jsonName = 'receiver_config.avr', jsonType = 'avr', jsonContent = null;
@@ -1555,7 +1555,7 @@ async function checkREW() {
         const major = parseInt(versionMatch[1], 10);
         const minor = parseInt(versionMatch[2], 10);
         const beta = parseInt(versionMatch[3], 10);
-        const versionOK = major > 5 || (major === 5 && minor > 40) || (major === 5 && minor === 40 && beta >= 84);
+        const versionOK = major > 5 || (major === 5 && minor > 40) || (major === 5 && minor === 40 && beta >= 86);
         if (!versionOK) {
           console.error(`Installed REW version (${versionString}) is outdated and incompatible with A1 Evo! Please install the latest REW Beta from https://www.avnirvana.com/threads/rew-api-beta-releases.12981/.`);
           throwError();
@@ -2950,8 +2950,6 @@ async function refFilter(index, orgIndex) {
   await new Promise(resolve => setTimeout(resolve, speedDelay / 4));
   await postSafe(`http://localhost:4735/eq/house-curve`, targetCurvePath, 'House curve set');
   await new Promise(resolve => setTimeout(resolve, speedDelay));
-  await postSafe(`http://localhost:4735/eq/match-target-settings`, {startFrequency: 10, endFrequency: 20000, individualMaxBoostdB: 3, overallMaxBoostdB: 0, flatnessTargetdB: 1, varyQAbove200Hz: true, allowLowShelf: false, allowHighShelf: true, highShelfMin: -3, highShelfMax: 3}, 'Update processed');
-  await new Promise(resolve => setTimeout(resolve, speedDelay / 10));
   await postSafe(`http://localhost:4735/eq/match-target-settings`, {startFrequency: (!xt32 && !xt) ? 375 : 200, endFrequency: 12500, individualMaxBoostdB: 3, overallMaxBoostdB: 0, flatnessTargetdB: 1, varyQAbove200Hz: true, allowLowShelf: false, allowHighShelf: true, highShelfMin: -3, highShelfMax: 3}, 'Update processed');
   await new Promise(resolve => setTimeout(resolve, speedDelay / 4));
   await postSafe(`${baseUrl}/${mpIndex + 3}/room-curve-settings`, {addRoomCurve: false}, 'Update processed');
